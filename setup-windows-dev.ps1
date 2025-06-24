@@ -21,9 +21,9 @@ if (!(Get-Command choco -ErrorAction SilentlyContinue)) {
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
     iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
     refreshenv
+} else {
+    Write-Host "✅ Chocolatey already installed" -ForegroundColor Green
 }
-
-Write-Host "✅ Chocolatey installed" -ForegroundColor Green
 
 # Install essential development tools
 Write-Host "📦 Installing development tools..." -ForegroundColor Yellow
@@ -46,6 +46,16 @@ foreach ($package in $packages) {
 refreshenv
 
 Write-Host "✅ Development tools installed" -ForegroundColor Green
+
+# Install Poetry for Python dependency management
+Write-Host "📦 Installing Poetry..." -ForegroundColor Yellow
+if (!(Get-Command poetry -ErrorAction SilentlyContinue)) {
+    (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -
+    $env:PATH += ";$env:APPDATA\Python\Scripts"
+    Write-Host "✅ Poetry installed" -ForegroundColor Green
+} else {
+    Write-Host "✅ Poetry already installed" -ForegroundColor Green
+}
 
 # Create development directory
 $devDir = "C:\CrystalCopilot"
@@ -94,6 +104,7 @@ CRYSTAL_RUNTIME_PATH=C:\Program Files (x86)\SAP BusinessObjects\Crystal Reports 
 RPTTOXML_PATH=C:\CrystalCopilot\crystal-copilot\tools\RptToXml.exe
 PYTHONPATH=C:\CrystalCopilot\crystal-copilot
 ENVIRONMENT=development
+DEBUG=true
 "@
 
 $envContent | Out-File -FilePath "$devDir\crystal-copilot\.env" -Encoding UTF8
@@ -104,7 +115,7 @@ $startScript = @"
 @echo off
 echo Starting Crystal Copilot Development Server...
 cd /d C:\CrystalCopilot\crystal-copilot
-python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+poetry run uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 pause
 "@
 
@@ -114,7 +125,7 @@ $frontendScript = @"
 @echo off
 echo Starting Crystal Copilot Frontend...
 cd /d C:\CrystalCopilot\crystal-copilot
-streamlit run frontend/app.py --server.port 8501
+poetry run streamlit run frontend/app.py --server.port 8501
 pause
 "@
 
@@ -129,7 +140,8 @@ Write-Host "Next Steps:" -ForegroundColor Yellow
 Write-Host "1. Install Crystal Reports Runtime: $crRuntimePath" -ForegroundColor Cyan
 Write-Host "2. Clone your repository to: $devDir\crystal-copilot" -ForegroundColor Cyan
 Write-Host "3. Set your OpenAI API key in: $devDir\crystal-copilot\.env" -ForegroundColor Cyan
-Write-Host "4. Run: $devDir\start-backend.bat" -ForegroundColor Cyan
+Write-Host "4. Run poetry install in the project directory" -ForegroundColor Cyan
+Write-Host "5. Run: $devDir\start-backend.bat" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Development Directory: $devDir" -ForegroundColor Green
 Write-Host "Happy coding! 🚀" -ForegroundColor Green

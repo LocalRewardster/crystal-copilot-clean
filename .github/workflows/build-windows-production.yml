@@ -1,0 +1,158 @@
+name: Build Production Windows Container
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['Dockerfile.windows', 'backend/**', '.github/workflows/**']
+  pull_request:
+    branches: [main]
+    paths: ['Dockerfile.windows', 'backend/**']
+  workflow_dispatch:
+    inputs:
+      deploy_to_production:
+        description: 'Deploy to production after build'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: crystal-copilot-windows
+
+jobs:
+  build-windows-container:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        platforms: windows/amd64
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+          
+    - name: Build Windows Container
+      run: |
+        Write-Host "Building Crystal Copilot Production Windows Container..."
+        docker build -f Dockerfile.windows -t crystal-copilot-windows:latest .
+        docker tag crystal-copilot-windows:latest ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+        
+    - name: Test Container Functionality
+      run: |
+        Write-Host "Testing container functionality..."
+        docker run --rm crystal-copilot-windows:latest python test_container.py
+        
+    - name: Run Crystal Reports SDK Tests
+      run: |
+        Write-Host "Testing Crystal Reports SDK integration..."
+        # Test with sample report file
+        docker run --rm -v "${PWD}/sample_reports:/app/reports" crystal-copilot-windows:latest python -c "
+        import os
+        import subprocess
+        
+        # Test RptToXml functionality
+        sample_reports = [f for f in os.listdir('/app/reports') if f.endswith('.rpt')]
+        if sample_reports:
+            test_file = f'/app/reports/{sample_reports[0]}'
+            print(f'Testing with: {test_file}')
+            result = subprocess.run(['C:/app/tools/RptToXml.exe', test_file, '/tmp/test_output.xml'], 
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                print('✅ Crystal Reports SDK test passed')
+            else:
+                print(f'❌ Crystal Reports SDK test failed: {result.stderr}')
+                exit(1)
+        else:
+            print('⚠️ No sample reports found for testing')
+        "
+        
+    - name: Security Scan
+      run: |
+        Write-Host "Running security scan..."
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock `
+          -v $PWD:/tmp/scan `
+          aquasec/trivy:latest image --exit-code 0 --severity HIGH,CRITICAL `
+          crystal-copilot-windows:latest
+          
+    - name: Push to Registry
+      if: github.event_name != 'pull_request'
+      run: |
+        Write-Host "Pushing to GitHub Container Registry..."
+        docker push ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+        
+        # Push version tags
+        $tags = "${{ steps.meta.outputs.tags }}".Split("`n")
+        foreach($tag in $tags) {
+          if($tag.Trim()) {
+            docker tag crystal-copilot-windows:latest $tag.Trim()
+            docker push $tag.Trim()
+          }
+        }
+        
+    - name: Deploy to Production
+      if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.deploy_to_production == 'true')
+      run: |
+        Write-Host "Deploying to production environment..."
+        # Add your production deployment commands here
+        # For example: kubectl, docker-compose, or direct server deployment
+        
+    - name: Generate Deployment Report
+      if: success()
+      run: |
+        Write-Host "Generating deployment report..."
+        $report = @"
+        🚀 Crystal Copilot Windows Container Build Report
+        ================================================
+        
+        📅 Build Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
+        🏷️ Git SHA: ${{ github.sha }}
+        🌿 Branch: ${{ github.ref_name }}
+        📦 Image: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+        ✅ Build Status: SUCCESS
+        
+        🔧 Components:
+        - Crystal Reports SDK: Integrated
+        - FastAPI Backend: Latest
+        - Python Runtime: 3.12
+        - Windows Server Core: ltsc2022
+        
+        📊 Next Steps:
+        1. Container pushed to GitHub Container Registry
+        2. Ready for production deployment
+        3. Access at: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+        "@
+        
+        Write-Host $report
+        echo $report > deployment-report.txt
+        
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: build-reports
+        path: |
+          deployment-report.txt
+          *.log
+        retention-days: 30

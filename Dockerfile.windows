@@ -1,0 +1,449 @@
+# Crystal Copilot - Production Windows Container with Crystal Reports SDK
+# Optimized for production deployment with real report processing
+
+# escape=`
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+# Set working directory
+WORKDIR C:\app
+
+# Install Chocolatey for package management
+RUN Set-ExecutionPolicy Bypass -Scope Process -Force; `
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; `
+    iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# Install Python 3.12 via Chocolatey
+RUN choco install python312 -y --no-progress
+
+# Refresh environment variables
+RUN refreshenv
+
+# Install Visual C++ Redistributables (required for Crystal Reports)
+RUN choco install vcredist2019 -y --no-progress
+
+# Install .NET Framework 4.8 (required for Crystal Reports SDK)
+RUN choco install dotnetfx -y --no-progress
+
+# Download and install Crystal Reports Runtime 2020
+RUN Write-Host "Downloading Crystal Reports Runtime..."; `
+    $url = 'https://origin.softwaredownloads.sap.com/public/file/0020000000398942021'; `
+    $output = 'C:\temp\CRRuntime_64bit_13_0_33.msi'; `
+    New-Item -ItemType Directory -Path C:\temp -Force; `
+    Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing; `
+    Write-Host "Installing Crystal Reports Runtime..."; `
+    Start-Process -FilePath 'msiexec.exe' -ArgumentList '/i', $output, '/quiet', '/norestart' -Wait; `
+    Remove-Item $output -Force
+
+# Download and install Crystal Reports for Visual Studio SDK
+RUN Write-Host "Downloading Crystal Reports SDK..."; `
+    $url = 'https://origin.softwaredownloads.sap.com/public/file/0020000000398952021'; `
+    $output = 'C:\temp\CRforVS_13_0_33.exe'; `
+    Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing; `
+    Write-Host "Installing Crystal Reports SDK..."; `
+    Start-Process -FilePath $output -ArgumentList '/S' -Wait; `
+    Remove-Item $output -Force
+
+# Create tools directory
+RUN New-Item -ItemType Directory -Path C:\app\tools -Force
+
+# Create production-ready RptToXml.exe using Crystal Reports SDK
+RUN $rptToXmlCode = @'
+using System;
+using System.IO;
+using System.Xml;
+using System.Collections.Generic;
+using CrystalDecisions.CrystalReports.Engine;
+using CrystalDecisions.Shared;
+
+namespace CrystalCopilot.Tools
+{
+    class RptToXml
+    {
+        static int Main(string[] args)
+        {
+            try
+            {
+                if (args.Length < 2)
+                {
+                    Console.WriteLine("Crystal Copilot RptToXml Tool v1.0");
+                    Console.WriteLine("Usage: RptToXml.exe <input.rpt> <output.xml> [options]");
+                    Console.WriteLine("Options:");
+                    Console.WriteLine("  --include-data    Include sample data in output");
+                    Console.WriteLine("  --verbose         Verbose output");
+                    return 1;
+                }
+
+                string inputFile = args[0];
+                string outputFile = args[1];
+                bool includeData = Array.Exists(args, arg => arg == "--include-data");
+                bool verbose = Array.Exists(args, arg => arg == "--verbose");
+
+                if (verbose) Console.WriteLine($"Processing: {inputFile}");
+
+                if (!File.Exists(inputFile))
+                {
+                    Console.WriteLine($"Error: Input file '{inputFile}' not found.");
+                    return 1;
+                }
+
+                // Load the Crystal Report
+                using (ReportDocument report = new ReportDocument())
+                {
+                    if (verbose) Console.WriteLine("Loading report...");
+                    report.Load(inputFile);
+
+                    // Create XML document
+                    XmlDocument xmlDoc = new XmlDocument();
+                    XmlElement root = xmlDoc.CreateElement("CrystalReport");
+                    xmlDoc.AppendChild(root);
+
+                    // Add report metadata
+                    AddReportInfo(xmlDoc, root, report, inputFile, verbose);
+                    
+                    // Add sections
+                    AddSections(xmlDoc, root, report, verbose);
+                    
+                    // Add database info
+                    AddDatabaseInfo(xmlDoc, root, report, verbose);
+                    
+                    // Add parameters
+                    AddParameters(xmlDoc, root, report, verbose);
+                    
+                    // Add formulas
+                    AddFormulas(xmlDoc, root, report, verbose);
+
+                    // Save XML
+                    if (verbose) Console.WriteLine($"Saving to: {outputFile}");
+                    xmlDoc.Save(outputFile);
+
+                    Console.WriteLine($"Successfully converted '{inputFile}' to '{outputFile}'");
+                    return 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+                if (args.Length > 0 && Array.Exists(args, arg => arg == "--verbose"))
+                {
+                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                }
+                return 1;
+            }
+        }
+
+        static void AddReportInfo(XmlDocument doc, XmlElement parent, ReportDocument report, string filePath, bool verbose)
+        {
+            if (verbose) Console.WriteLine("Adding report info...");
+            
+            XmlElement info = doc.CreateElement("ReportInfo");
+            parent.AppendChild(info);
+
+            AddElement(doc, info, "Name", Path.GetFileNameWithoutExtension(filePath));
+            AddElement(doc, info, "FilePath", filePath);
+            AddElement(doc, info, "CreationDate", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
+            AddElement(doc, info, "ReportVersion", "13.0.33");
+            
+            try
+            {
+                AddElement(doc, info, "RecordSelectionFormula", report.RecordSelectionFormula ?? "");
+            }
+            catch { /* Ignore if not accessible */ }
+        }
+
+        static void AddSections(XmlDocument doc, XmlElement parent, ReportDocument report, bool verbose)
+        {
+            if (verbose) Console.WriteLine("Adding sections...");
+            
+            XmlElement sections = doc.CreateElement("Sections");
+            parent.AppendChild(sections);
+
+            foreach (Section section in report.ReportDefinition.Sections)
+            {
+                XmlElement sectionElem = doc.CreateElement("Section");
+                sections.AppendChild(sectionElem);
+
+                sectionElem.SetAttribute("name", section.Name);
+                sectionElem.SetAttribute("kind", section.Kind.ToString());
+                sectionElem.SetAttribute("height", section.Height.ToString());
+
+                // Add objects in section
+                XmlElement objects = doc.CreateElement("Objects");
+                sectionElem.AppendChild(objects);
+
+                foreach (ReportObject obj in section.ReportObjects)
+                {
+                    XmlElement objElem = doc.CreateElement("Object");
+                    objects.AppendChild(objElem);
+
+                    objElem.SetAttribute("name", obj.Name);
+                    objElem.SetAttribute("kind", obj.Kind.ToString());
+                    objElem.SetAttribute("left", obj.Left.ToString());
+                    objElem.SetAttribute("top", obj.Top.ToString());
+                    objElem.SetAttribute("width", obj.Width.ToString());
+                    objElem.SetAttribute("height", obj.Height.ToString());
+
+                    // Add specific properties based on object type
+                    if (obj is TextObject textObj)
+                    {
+                        try { objElem.SetAttribute("text", textObj.Text); } catch { }
+                    }
+                    else if (obj is FieldObject fieldObj)
+                    {
+                        try { objElem.SetAttribute("dataSource", fieldObj.DataSource.ToString()); } catch { }
+                    }
+                }
+            }
+        }
+
+        static void AddDatabaseInfo(XmlDocument doc, XmlElement parent, ReportDocument report, bool verbose)
+        {
+            if (verbose) Console.WriteLine("Adding database info...");
+            
+            XmlElement database = doc.CreateElement("Database");
+            parent.AppendChild(database);
+
+            XmlElement tables = doc.CreateElement("Tables");
+            database.AppendChild(tables);
+
+            foreach (Table table in report.Database.Tables)
+            {
+                XmlElement tableElem = doc.CreateElement("Table");
+                tables.AppendChild(tableElem);
+
+                tableElem.SetAttribute("name", table.Name);
+                tableElem.SetAttribute("location", table.Location);
+                tableElem.SetAttribute("className", table.ClassName);
+            }
+        }
+
+        static void AddParameters(XmlDocument doc, XmlElement parent, ReportDocument report, bool verbose)
+        {
+            if (verbose) Console.WriteLine("Adding parameters...");
+            
+            XmlElement parameters = doc.CreateElement("Parameters");
+            parent.AppendChild(parameters);
+
+            foreach (ParameterFieldDefinition param in report.DataDefinition.ParameterFields)
+            {
+                XmlElement paramElem = doc.CreateElement("Parameter");
+                parameters.AppendChild(paramElem);
+
+                paramElem.SetAttribute("name", param.Name);
+                paramElem.SetAttribute("parameterFieldName", param.ParameterFieldName);
+                paramElem.SetAttribute("valueType", param.ValueType.ToString());
+                paramElem.SetAttribute("hasCurrentValue", param.HasCurrentValue.ToString());
+            }
+        }
+
+        static void AddFormulas(XmlDocument doc, XmlElement parent, ReportDocument report, bool verbose)
+        {
+            if (verbose) Console.WriteLine("Adding formulas...");
+            
+            XmlElement formulas = doc.CreateElement("Formulas");
+            parent.AppendChild(formulas);
+
+            foreach (FormulaFieldDefinition formula in report.DataDefinition.FormulaFields)
+            {
+                XmlElement formulaElem = doc.CreateElement("Formula");
+                formulas.AppendChild(formulaElem);
+
+                formulaElem.SetAttribute("name", formula.Name);
+                formulaElem.SetAttribute("formulaName", formula.FormulaName);
+                try
+                {
+                    formulaElem.SetAttribute("text", formula.Text);
+                }
+                catch { /* Ignore if not accessible */ }
+            }
+        }
+
+        static void AddElement(XmlDocument doc, XmlElement parent, string name, string value)
+        {
+            XmlElement elem = doc.CreateElement(name);
+            elem.InnerText = value ?? "";
+            parent.AppendChild(elem);
+        }
+    }
+}
+'@; `
+    $rptToXmlCode | Out-File -FilePath C:\app\tools\RptToXml.cs -Encoding UTF8
+
+# Compile RptToXml.exe using the Crystal Reports SDK
+RUN Write-Host "Compiling RptToXml tool..."; `
+    $crPath = "${env:ProgramFiles(x86)}\SAP BusinessObjects\Crystal Reports for .NET Framework 4.0\Common\SAP BusinessObjects Enterprise XI 4.0\win64_x64"; `
+    $crAssemblies = @( `
+        "$crPath\CrystalDecisions.CrystalReports.Engine.dll", `
+        "$crPath\CrystalDecisions.ReportSource.dll", `
+        "$crPath\CrystalDecisions.Shared.dll", `
+        "$crPath\CrystalDecisions.Windows.Forms.dll" `
+    ); `
+    $assemblies = $crAssemblies -join '","'; `
+    $cscPath = "${env:ProgramFiles}\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe"; `
+    if (-not (Test-Path $cscPath)) { `
+        $cscPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe" `
+    }; `
+    if (-not (Test-Path $cscPath)) { `
+        Write-Host "Installing Build Tools..."; `
+        choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.MSBuildTools" -y --no-progress; `
+        $cscPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe" `
+    }; `
+    & $cscPath /target:exe /out:C:\app\tools\RptToXml.exe /reference:"$assemblies" C:\app\tools\RptToXml.cs
+
+# Copy application files
+COPY backend/ C:\app\backend\
+COPY frontend/ C:\app\frontend\
+COPY sample_reports/ C:\app\sample_reports\
+COPY requirements.txt C:\app\
+COPY pyproject.toml C:\app\
+
+# Install Python dependencies
+RUN python -m pip install --upgrade pip; `
+    pip install --no-cache-dir -r requirements.txt
+
+# Set environment variables
+ENV CRYSTAL_RUNTIME_PATH="C:\Program Files (x86)\SAP BusinessObjects\Crystal Reports for .NET Framework 4.0\Common\SAP BusinessObjects Enterprise XI 4.0\win64_x64\"
+ENV RPTTOXML_PATH="C:\app\tools\RptToXml.exe"
+ENV PYTHONPATH="C:\app"
+ENV PORT="8000"
+
+# Create production test script
+RUN $testScript = @'
+import os
+import sys
+import subprocess
+import json
+from pathlib import Path
+
+def test_production_environment():
+    print("🚀 Crystal Copilot Production Environment Test")
+    print("=" * 60)
+    
+    results = {"tests": [], "status": "PASS"}
+    
+    # Test Python
+    python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    test_result = {"name": "Python Runtime", "status": "PASS", "details": f"Version {python_version}"}
+    results["tests"].append(test_result)
+    print(f"✅ Python Runtime: {python_version}")
+    
+    # Test Crystal Runtime
+    crystal_path = os.getenv("CRYSTAL_RUNTIME_PATH")
+    if os.path.exists(crystal_path):
+        test_result = {"name": "Crystal Reports Runtime", "status": "PASS", "details": crystal_path}
+        print(f"✅ Crystal Reports Runtime: Found")
+    else:
+        test_result = {"name": "Crystal Reports Runtime", "status": "FAIL", "details": "Not found"}
+        results["status"] = "FAIL"
+        print(f"❌ Crystal Reports Runtime: Not found")
+    results["tests"].append(test_result)
+    
+    # Test RptToXml Tool
+    rpttoxml_path = os.getenv("RPTTOXML_PATH")
+    if os.path.exists(rpttoxml_path):
+        try:
+            result = subprocess.run([rpttoxml_path], capture_output=True, text=True, timeout=30)
+            if "Usage:" in result.stdout:
+                test_result = {"name": "RptToXml Tool", "status": "PASS", "details": "Functional"}
+                print(f"✅ RptToXml Tool: Functional")
+            else:
+                test_result = {"name": "RptToXml Tool", "status": "WARN", "details": "Unexpected output"}
+                print(f"⚠️  RptToXml Tool: Unexpected output")
+        except Exception as e:
+            test_result = {"name": "RptToXml Tool", "status": "FAIL", "details": str(e)}
+            results["status"] = "FAIL"
+            print(f"❌ RptToXml Tool: {e}")
+    else:
+        test_result = {"name": "RptToXml Tool", "status": "FAIL", "details": "Not found"}
+        results["status"] = "FAIL"
+        print(f"❌ RptToXml Tool: Not found")
+    results["tests"].append(test_result)
+    
+    # Test FastAPI
+    try:
+        import fastapi
+        test_result = {"name": "FastAPI", "status": "PASS", "details": f"Version {fastapi.__version__}"}
+        print(f"✅ FastAPI: {fastapi.__version__}")
+    except ImportError as e:
+        test_result = {"name": "FastAPI", "status": "FAIL", "details": str(e)}
+        results["status"] = "FAIL"
+        print(f"❌ FastAPI: {e}")
+    results["tests"].append(test_result)
+    
+    # Test sample reports
+    sample_dir = Path("C:/app/sample_reports")
+    if sample_dir.exists():
+        rpt_files = list(sample_dir.glob("*.rpt"))
+        test_result = {"name": "Sample Reports", "status": "PASS", "details": f"{len(rpt_files)} files found"}
+        print(f"✅ Sample Reports: {len(rpt_files)} files")
+        
+        # Test conversion on first sample
+        if rpt_files and os.path.exists(rpttoxml_path):
+            try:
+                test_file = str(rpt_files[0])
+                output_file = "C:/tmp/test_conversion.xml"
+                os.makedirs("C:/tmp", exist_ok=True)
+                
+                result = subprocess.run([rpttoxml_path, test_file, output_file], 
+                                      capture_output=True, text=True, timeout=60)
+                if result.returncode == 0:
+                    test_result = {"name": "Report Conversion", "status": "PASS", "details": "Sample conversion successful"}
+                    print(f"✅ Report Conversion: Sample successful")
+                else:
+                    test_result = {"name": "Report Conversion", "status": "FAIL", "details": result.stderr}
+                    results["status"] = "FAIL"
+                    print(f"❌ Report Conversion: {result.stderr}")
+                results["tests"].append(test_result)
+            except Exception as e:
+                test_result = {"name": "Report Conversion", "status": "FAIL", "details": str(e)}
+                results["status"] = "FAIL"
+                print(f"❌ Report Conversion: {e}")
+                results["tests"].append(test_result)
+    else:
+        test_result = {"name": "Sample Reports", "status": "WARN", "details": "Directory not found"}
+        print(f"⚠️  Sample Reports: Directory not found")
+        results["tests"].append(test_result)
+    
+    print("=" * 60)
+    print(f"🎯 Overall Status: {results['status']}")
+    
+    # Save test results
+    with open("C:/app/test_results.json", "w") as f:
+        json.dump(results, f, indent=2)
+    
+    return results["status"] == "PASS"
+
+if __name__ == "__main__":
+    success = test_production_environment()
+    sys.exit(0 if success else 1)
+'@; `
+    $testScript | Out-File -FilePath C:\app\test_container.py -Encoding UTF8
+
+# Create startup script
+RUN $startupScript = @'
+@echo off
+echo Starting Crystal Copilot Production Server...
+echo.
+echo Environment Check:
+python C:\app\test_container.py
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo ERROR: Environment test failed. Check configuration.
+    exit /b 1
+)
+echo.
+echo Starting FastAPI server on port %PORT%...
+python -m uvicorn backend.main:app --host 0.0.0.0 --port %PORT% --workers 4
+'@; `
+    $startupScript | Out-File -FilePath C:\app\start.bat -Encoding ASCII
+
+# Health check with extended timeout for Windows
+HEALTHCHECK --interval=60s --timeout=30s --start-period=120s --retries=3 `
+    CMD powershell -command "try { $response = Invoke-WebRequest -Uri 'http://localhost:8000/health' -UseBasicParsing -TimeoutSec 10; if($response.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }"
+
+# Expose port
+EXPOSE 8000
+
+# Production startup command
+CMD ["C:\\app\\start.bat"]

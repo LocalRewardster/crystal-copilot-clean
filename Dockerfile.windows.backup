@@ -1,0 +1,125 @@
+# Crystal Copilot MVP - Windows Container
+# Week 0 Milestone: Crystal Runtime + RptToXml CLI
+
+# escape=`
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+# Set working directory
+WORKDIR C:\app
+
+# Install Python 3.12
+RUN `
+    $url = 'https://www.python.org/ftp/python/3.12.0/python-3.12.0-amd64.exe'; `
+    $output = 'python-installer.exe'; `
+    Invoke-WebRequest -Uri $url -OutFile $output; `
+    Start-Process -FilePath $output -ArgumentList '/quiet', 'InstallAllUsers=1', 'PrependPath=1' -Wait; `
+    Remove-Item $output
+
+# Install Crystal Reports Runtime (64-bit)
+# Note: This requires the official Crystal Reports redistributable MSI
+RUN `
+    $url = 'https://downloads.businessobjects.com/akdlm/cr4win2020/CRRuntime_64bit_13_0_33.msi'; `
+    $output = 'CRRuntime_64bit_13_0_33.msi'; `
+    Invoke-WebRequest -Uri $url -OutFile $output; `
+    Start-Process -FilePath 'msiexec.exe' -ArgumentList '/i', $output, '/quiet' -Wait; `
+    Remove-Item $output
+
+# Create tools directory
+RUN New-Item -ItemType Directory -Path C:\app\tools -Force
+
+# Install RptToXml CLI tool
+# Note: This would normally come from Crystal Reports SDK or custom build
+# For now, we'll create a placeholder that will be replaced with actual tool
+RUN `
+    $placeholderContent = @'
+@echo off
+echo RptToXml CLI Tool Placeholder
+echo Usage: RptToXml.exe [input.rpt] [output.xml]
+echo.
+echo This is a placeholder for the actual RptToXml CLI tool.
+echo In production, this would be replaced with the real Crystal Reports SDK tool.
+echo.
+if "%1"=="" (
+    echo Error: No input file specified
+    exit /b 1
+)
+echo Mock XML output would be generated for: %1
+exit /b 0
+'@; `
+    $placeholderContent | Out-File -FilePath C:\app\tools\RptToXml.exe -Encoding ASCII
+
+# Copy application code (when available)
+# COPY backend/ C:\app\backend\
+# COPY requirements.txt C:\app\
+
+# Create a requirements.txt file for now
+RUN `
+    $requirements = @'
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic==2.5.0
+python-dotenv==1.0.0
+xmltodict==0.13.0
+'@; `
+    $requirements | Out-File -FilePath C:\app\requirements.txt -Encoding UTF8
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Set environment variables
+ENV CRYSTAL_RUNTIME_PATH="C:\Program Files (x86)\SAP BusinessObjects\Crystal Reports for .NET Framework 4.0\Common\SAP BusinessObjects Enterprise XI 4.0\win64_x64\"
+ENV RPTTOXML_PATH="C:\app\tools\RptToXml.exe"
+
+# Create a simple test script
+RUN `
+    $testScript = @'
+import os
+import sys
+
+def test_environment():
+    print("Crystal Copilot MVP - Container Test")
+    print("="*40)
+    
+    # Check Python
+    print(f"Python version: {sys.version}")
+    
+    # Check Crystal Runtime path
+    crystal_path = os.getenv("CRYSTAL_RUNTIME_PATH")
+    print(f"Crystal Runtime Path: {crystal_path}")
+    
+    # Check RptToXml tool
+    rpttoxml_path = os.getenv("RPTTOXML_PATH")
+    print(f"RptToXml Path: {rpttoxml_path}")
+    
+    if os.path.exists(rpttoxml_path):
+        print("✅ RptToXml tool found")
+    else:
+        print("❌ RptToXml tool not found")
+    
+    # Check FastAPI
+    try:
+        import fastapi
+        print(f"✅ FastAPI version: {fastapi.__version__}")
+    except ImportError:
+        print("❌ FastAPI not installed")
+    
+    print("="*40)
+    print("Container ready for Crystal Reports processing!")
+
+if __name__ == "__main__":
+    test_environment()
+'@; `
+    $testScript | Out-File -FilePath C:\app\test_container.py -Encoding UTF8
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 `
+    CMD powershell -command "try { python C:\app\test_container.py } catch { exit 1 }"
+
+# Expose port
+EXPOSE 8000
+
+# Default command (will be overridden when backend is copied)
+CMD ["python", "test_container.py"] 

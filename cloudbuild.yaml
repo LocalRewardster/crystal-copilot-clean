@@ -1,0 +1,15 @@
+steps:
+  # Build Windows container
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-f', 'Dockerfile.windows', '-t', 'gcr.io/$PROJECT_ID/crystal-copilot-windows:latest', '.']
+    
+  # Test the container
+  - name: 'gcr.io/$PROJECT_ID/crystal-copilot-windows:latest'
+    args: ['python', 'test_container.py']
+    
+images:
+  - 'gcr.io/$PROJECT_ID/crystal-copilot-windows:latest'
+
+options:
+  pool:
+    name: 'projects/$PROJECT_ID/locations/us-central1/workerPools/windows-pool'

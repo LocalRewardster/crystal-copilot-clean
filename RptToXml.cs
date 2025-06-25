@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Xml;
 using System.Collections.Generic;
+using System.Reflection;
 using CrystalDecisions.CrystalReports.Engine;
 using CrystalDecisions.Shared;
 
@@ -230,7 +231,27 @@ namespace CrystalCopilot.Tools
 
                 tableElem.SetAttribute("name", table.Name ?? "");
                 tableElem.SetAttribute("location", table.Location ?? "");
-                tableElem.SetAttribute("className", table.ClassName ?? "");
+                
+                // Note: ClassName property may not be available in all Crystal Reports versions
+                try
+                {
+                    // Try to get additional table properties if available
+                    var tableType = table.GetType();
+                    var classNameProp = tableType.GetProperty("ClassName");
+                    if (classNameProp != null)
+                    {
+                        var className = classNameProp.GetValue(table, null);
+                        tableElem.SetAttribute("className", className?.ToString() ?? "");
+                    }
+                    else
+                    {
+                        tableElem.SetAttribute("className", "Table");
+                    }
+                }
+                catch
+                {
+                    tableElem.SetAttribute("className", "Table");
+                }
             }
         }
 

@@ -135,6 +135,7 @@ echo     ^<TargetFramework^>net48^</TargetFramework^>
 echo     ^<AssemblyName^>RptToXml^</AssemblyName^>
 echo     ^<UseWindowsForms^>false^</UseWindowsForms^>
 echo     ^<GenerateAssemblyInfo^>false^</GenerateAssemblyInfo^>
+echo     ^<EnableDefaultCompileItems^>false^</EnableDefaultCompileItems^>
 echo   ^</PropertyGroup^>
 echo.
 echo   ^<ItemGroup^>

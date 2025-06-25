@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 echo Crystal Reports 2020 Step-by-Step Setup
 echo ========================================
 
@@ -18,45 +19,45 @@ set FOUND_CR=0
 set "CR_BASE="
 
 REM Check each path individually
-if exist "%CR_PATH1%" (
-    echo FOUND: Crystal Reports at "%CR_PATH1%"
+if exist "!CR_PATH1!" (
+    echo FOUND: Crystal Reports at "!CR_PATH1!"
     set FOUND_CR=1
-    set "CR_BASE=%CR_PATH1%"
+    set "CR_BASE=!CR_PATH1!"
     goto :FOUND_PATH
 ) else (
-    echo NOT FOUND: "%CR_PATH1%"
+    echo NOT FOUND: "!CR_PATH1!"
 )
 
-if exist "%CR_PATH2%" (
-    echo FOUND: Crystal Reports at "%CR_PATH2%"
+if exist "!CR_PATH2!" (
+    echo FOUND: Crystal Reports at "!CR_PATH2!"
     set FOUND_CR=1
-    set "CR_BASE=%CR_PATH2%"
+    set "CR_BASE=!CR_PATH2!"
     goto :FOUND_PATH
 ) else (
-    echo NOT FOUND: "%CR_PATH2%"
+    echo NOT FOUND: "!CR_PATH2!"
 )
 
-if exist "%CR_PATH3%" (
-    echo FOUND: Crystal Reports at "%CR_PATH3%"
+if exist "!CR_PATH3!" (
+    echo FOUND: Crystal Reports at "!CR_PATH3!"
     set FOUND_CR=1
-    set "CR_BASE=%CR_PATH3%"
+    set "CR_BASE=!CR_PATH3!"
     goto :FOUND_PATH
 ) else (
-    echo NOT FOUND: "%CR_PATH3%"
+    echo NOT FOUND: "!CR_PATH3!"
 )
 
-if exist "%CR_PATH4%" (
-    echo FOUND: Crystal Reports at "%CR_PATH4%"
+if exist "!CR_PATH4!" (
+    echo FOUND: Crystal Reports at "!CR_PATH4!"
     set FOUND_CR=1
-    set "CR_BASE=%CR_PATH4%"
+    set "CR_BASE=!CR_PATH4!"
     goto :FOUND_PATH
 ) else (
-    echo NOT FOUND: "%CR_PATH4%"
+    echo NOT FOUND: "!CR_PATH4!"
 )
 
 :FOUND_PATH
 
-if %FOUND_CR%==0 (
+if !FOUND_CR!==0 (
     echo.
     echo ERROR: Crystal Reports 2020 not found in common locations
     echo.
@@ -85,17 +86,17 @@ set "SUBDIR4=RedistFolders\dotnet_20"
 set "SUBDIR5=RedistFolders\dotnet_40"
 
 REM Check each subdirectory
-call :CHECK_SUBDIR "%SUBDIR1%"
-call :CHECK_SUBDIR "%SUBDIR2%"
-call :CHECK_SUBDIR "%SUBDIR3%"
-call :CHECK_SUBDIR "%SUBDIR4%"
-call :CHECK_SUBDIR "%SUBDIR5%"
+call :CHECK_SUBDIR "!SUBDIR1!"
+call :CHECK_SUBDIR "!SUBDIR2!"
+call :CHECK_SUBDIR "!SUBDIR3!"
+call :CHECK_SUBDIR "!SUBDIR4!"
+call :CHECK_SUBDIR "!SUBDIR5!"
 
-if "%CR_ENGINE%"=="" (
+if "!CR_ENGINE!"=="" (
     echo ERROR: Could not find CrystalDecisions.CrystalReports.Engine.dll in standard locations
     echo.
     echo Searching entire Crystal Reports directory...
-    for /f "delims=" %%i in ('dir "%CR_BASE%" /s /b /a-d 2^>nul ^| findstr "CrystalDecisions.CrystalReports.Engine.dll"') do (
+    for /f "delims=" %%i in ('dir "!CR_BASE!" /s /b /a-d 2^>nul ^| findstr "CrystalDecisions.CrystalReports.Engine.dll"') do (
         set "CR_ENGINE=%%i"
         echo FOUND: %%i
         goto :FOUND_ENGINE
@@ -103,9 +104,9 @@ if "%CR_ENGINE%"=="" (
     :FOUND_ENGINE
 )
 
-if "%CR_SHARED%"=="" (
+if "!CR_SHARED!"=="" (
     echo Searching for CrystalDecisions.Shared.dll...
-    for /f "delims=" %%i in ('dir "%CR_BASE%" /s /b /a-d 2^>nul ^| findstr "CrystalDecisions.Shared.dll"') do (
+    for /f "delims=" %%i in ('dir "!CR_BASE!" /s /b /a-d 2^>nul ^| findstr "CrystalDecisions.Shared.dll"') do (
         set "CR_SHARED=%%i"
         echo FOUND: %%i
         goto :FOUND_SHARED
@@ -113,7 +114,7 @@ if "%CR_SHARED%"=="" (
     :FOUND_SHARED
 )
 
-if "%CR_ENGINE%"=="" (
+if "!CR_ENGINE!"=="" (
     echo.
     echo ERROR: Crystal Reports DLLs not found
     echo Please check your Crystal Reports 2020 installation
@@ -123,58 +124,58 @@ if "%CR_ENGINE%"=="" (
 
 echo.
 echo SUCCESS: Found Crystal Reports DLLs
-echo Engine: %CR_ENGINE%
-echo Shared: %CR_SHARED%
+echo Engine: !CR_ENGINE!
+echo Shared: !CR_SHARED!
 
 echo.
 echo STEP 3: Check Visual Studio Build Tools
 echo =======================================
 
-set VS_CSC=""
-set MSBUILD_PATH=""
+set "VS_CSC="
+set "MSBUILD_PATH="
 
 REM Check for Visual Studio 2022
 if exist "C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\Roslyn\csc.exe" (
-    set VS_CSC="C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\Roslyn\csc.exe"
-    set MSBUILD_PATH="C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe"
+    set "VS_CSC=C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\Roslyn\csc.exe"
+    set "MSBUILD_PATH=C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe"
     echo FOUND: Visual Studio 2022 Professional
 )
 
-if "%VS_CSC%"=="" if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\Roslyn\csc.exe" (
-    set VS_CSC="C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\Roslyn\csc.exe"
-    set MSBUILD_PATH="C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
+if "!VS_CSC!"=="" if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\Roslyn\csc.exe" (
+    set "VS_CSC=C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\Roslyn\csc.exe"
+    set "MSBUILD_PATH=C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
     echo FOUND: Visual Studio 2022 Community
 )
 
-if "%VS_CSC%"=="" if exist "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe" (
-    set VS_CSC="C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe"
-    set MSBUILD_PATH="C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe"
+if "!VS_CSC!"=="" if exist "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe" (
+    set "VS_CSC=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe"
+    set "MSBUILD_PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe"
     echo FOUND: Visual Studio 2022 Enterprise
 )
 
 REM Check for Visual Studio 2019
-if "%VS_CSC%"=="" if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\Roslyn\csc.exe" (
-    set VS_CSC="C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\Roslyn\csc.exe"
-    set MSBUILD_PATH="C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\MSBuild.exe"
+if "!VS_CSC!"=="" if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\Roslyn\csc.exe" (
+    set "VS_CSC=C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\Roslyn\csc.exe"
+    set "MSBUILD_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\MSBuild.exe"
     echo FOUND: Visual Studio 2019 Professional
 )
 
-if "%VS_CSC%"=="" (
+if "!VS_CSC!"=="" (
     echo WARNING: Visual Studio compiler not found in standard locations
     echo Checking system PATH...
-    for /f "delims=" %%i in ('where csc 2^>nul') do set VS_CSC="%%i"
-    for /f "delims=" %%i in ('where msbuild 2^>nul') do set MSBUILD_PATH="%%i"
+    for /f "delims=" %%i in ('where csc 2^>nul') do set "VS_CSC=%%i"
+    for /f "delims=" %%i in ('where msbuild 2^>nul') do set "MSBUILD_PATH=%%i"
 )
 
-if "%VS_CSC%"=="" (
+if "!VS_CSC!"=="" (
     echo ERROR: No C# compiler found
     echo Please ensure Visual Studio 2019/2022 is properly installed
     pause
     exit /b 1
 )
 
-echo SUCCESS: Found compiler at %VS_CSC%
-echo MSBuild: %MSBUILD_PATH%
+echo SUCCESS: Found compiler at "!VS_CSC!"
+echo MSBuild: "!MSBUILD_PATH!"
 
 echo.
 echo STEP 4: Test Compilation with Real Crystal Reports
@@ -202,11 +203,11 @@ echo   ^<ItemGroup^>
 echo     ^<Reference Include="System" /^>
 echo     ^<Reference Include="System.Xml" /^>
 echo     ^<Reference Include="CrystalDecisions.CrystalReports.Engine"^>
-echo       ^<HintPath^>%CR_ENGINE%^</HintPath^>
+echo       ^<HintPath^>!CR_ENGINE!^</HintPath^>
 echo       ^<Private^>true^</Private^>
 echo     ^</Reference^>
 echo     ^<Reference Include="CrystalDecisions.Shared"^>
-echo       ^<HintPath^>%CR_SHARED%^</HintPath^>
+echo       ^<HintPath^>!CR_SHARED!^</HintPath^>
 echo       ^<Private^>true^</Private^>
 echo     ^</Reference^>
 echo   ^</ItemGroup^>
@@ -221,9 +222,9 @@ echo Project file created: RptToXml-Production.csproj
 
 echo.
 echo Attempting compilation with MSBuild...
-%MSBUILD_PATH% RptToXml-Production.csproj /p:Configuration=Release /p:Platform=AnyCPU
+"!MSBUILD_PATH!" RptToXml-Production.csproj /p:Configuration=Release /p:Platform=AnyCPU
 
-if %ERRORLEVEL% EQU 0 (
+if !ERRORLEVEL! EQU 0 (
     echo.
     echo ========================================
     echo SUCCESS: REAL Crystal Reports compilation!
@@ -233,7 +234,7 @@ if %ERRORLEVEL% EQU 0 (
         echo Testing with real Crystal Reports SDK...
         RptToXml.exe
         echo.
-        echo File created: %CD%\RptToXml.exe
+        echo File created: !CD!\RptToXml.exe
         dir RptToXml.exe
         echo.
         echo This is the REAL Crystal Reports tool!
@@ -245,14 +246,14 @@ if %ERRORLEVEL% EQU 0 (
     echo Compilation failed. Trying direct CSC approach...
     
     echo Compiling with direct csc.exe...
-    %VS_CSC% /target:exe /out:RptToXml.exe /platform:anycpu ^
+    "!VS_CSC!" /target:exe /out:RptToXml.exe /platform:anycpu ^
         /reference:System.dll ^
         /reference:System.Xml.dll ^
-        /reference:%CR_ENGINE% ^
-        /reference:%CR_SHARED% ^
+        "/reference:!CR_ENGINE!" ^
+        "/reference:!CR_SHARED!" ^
         RptToXml.cs
     
-    if %ERRORLEVEL% EQU 0 (
+    if !ERRORLEVEL! EQU 0 (
         echo.
         echo SUCCESS: Direct CSC compilation worked!
         RptToXml.exe
@@ -275,8 +276,8 @@ if exist "RptToXml.exe" (
     echo echo ==================================================
     echo.
     echo REM Set Crystal Reports environment
-    echo set CR_PATH=%CR_BASE%
-    echo set PATH=%%PATH%%;%%CR_PATH%%
+    echo set "CR_PATH=!CR_BASE!"
+    echo set "PATH=%%PATH%%;%%CR_PATH%%"
     echo.
     echo REM Start backend with real Crystal Reports parser
     echo cd /d "%%~dp0"
@@ -311,18 +312,18 @@ goto :EOF
 
 :CHECK_SUBDIR
 set "CURRENT_SUBDIR=%~1"
-set "FULLPATH=%CR_BASE%\%CURRENT_SUBDIR%"
-if exist "%FULLPATH%" (
-    echo Checking: "%FULLPATH%"
-    if exist "%FULLPATH%\CrystalDecisions.CrystalReports.Engine.dll" (
-        set "CR_ENGINE=%FULLPATH%\CrystalDecisions.CrystalReports.Engine.dll"
+set "FULLPATH=!CR_BASE!\!CURRENT_SUBDIR!"
+if exist "!FULLPATH!" (
+    echo Checking: "!FULLPATH!"
+    if exist "!FULLPATH!\CrystalDecisions.CrystalReports.Engine.dll" (
+        set "CR_ENGINE=!FULLPATH!\CrystalDecisions.CrystalReports.Engine.dll"
         echo   FOUND: CrystalDecisions.CrystalReports.Engine.dll
     )
-    if exist "%FULLPATH%\CrystalDecisions.Shared.dll" (
-        set "CR_SHARED=%FULLPATH%\CrystalDecisions.Shared.dll"
+    if exist "!FULLPATH!\CrystalDecisions.Shared.dll" (
+        set "CR_SHARED=!FULLPATH!\CrystalDecisions.Shared.dll"
         echo   FOUND: CrystalDecisions.Shared.dll
     )
 ) else (
-    echo NOT FOUND: "%FULLPATH%"
+    echo NOT FOUND: "!FULLPATH!"
 )
 goto :EOF 

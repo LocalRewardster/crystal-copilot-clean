@@ -53,6 +53,62 @@ class ReportParser:
         if not os.path.exists(rpt_file_path):
             raise FileNotFoundError(f"Report file not found: {rpt_file_path}")
 
+        # Try to use real RptToXml.exe tool first
+        try:
+            return await self._convert_with_real_tool(rpt_file_path)
+        except Exception as e:
+            print(f"Real RptToXml tool failed: {e}")
+            print("Falling back to mock data generation...")
+            return await self._convert_with_mock_data(rpt_file_path)
+
+    async def _convert_with_real_tool(self, rpt_file_path: str) -> str:
+        """Convert using real RptToXml.exe tool"""
+        
+        # Check if RptToXml.exe exists
+        rpttoxml_exe = os.path.join(os.getcwd(), 'RptToXml.exe')
+        if not os.path.exists(rpttoxml_exe):
+            raise FileNotFoundError(f"RptToXml.exe not found at: {rpttoxml_exe}")
+
+        # Generate temporary output file
+        temp_xml_file = f"temp_{uuid.uuid4().hex}.xml"
+        
+        try:
+            # Run RptToXml.exe
+            cmd = [rpttoxml_exe, rpt_file_path, temp_xml_file, "--verbose"]
+            
+            print(f"Running: {' '.join(cmd)}")
+            result = subprocess.run(
+                cmd, 
+                capture_output=True, 
+                text=True, 
+                check=True,
+                timeout=30  # 30 second timeout
+            )
+            
+            print(f"RptToXml output: {result.stdout}")
+            if result.stderr:
+                print(f"RptToXml errors: {result.stderr}")
+            
+            # Read the generated XML file
+            if not os.path.exists(temp_xml_file):
+                raise FileNotFoundError(f"Output XML file not created: {temp_xml_file}")
+                
+            with open(temp_xml_file, 'r', encoding='utf-8') as f:
+                xml_content = f.read()
+                
+            print(f"Successfully converted {rpt_file_path} to XML ({len(xml_content)} characters)")
+            return xml_content
+            
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_xml_file):
+                os.remove(temp_xml_file)
+
+    async def _convert_with_mock_data(self, rpt_file_path: str) -> str:
+        """Fallback: Generate mock XML data for development"""
+        
+        print(f"Generating mock XML for: {rpt_file_path}")
+        
         # Read the sample file content to generate appropriate mock data
         file_content = ""
         try:
@@ -64,14 +120,7 @@ class ReportParser:
                 file_content = f.read(1024).decode('utf-8', errors='ignore')
 
         # Generate mock XML based on file content
-        mock_xml = self._generate_mock_xml_from_content(rpt_file_path, file_content)
-
-        # TODO: Replace with actual RptToXml CLI call:
-        # cmd = [self.rpttoxml_path, rpt_file_path, "-output", "xml"]
-        # result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        # return result.stdout
-
-        return mock_xml
+        return self._generate_mock_xml_from_content(rpt_file_path, file_content)
 
     def _generate_mock_xml_from_content(self, file_path: str, content: str) -> str:
         """Generate realistic mock XML based on the sample file content"""

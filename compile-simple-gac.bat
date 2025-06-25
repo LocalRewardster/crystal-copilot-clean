@@ -20,15 +20,53 @@ REM Check for .NET Framework compiler (most compatible with Crystal Reports)
 if exist "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" (
     set "CSC_PATH=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
     echo Using .NET Framework 4.0 compiler (64-bit)
-) else if exist "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe" (
+    goto :COMPILER_FOUND
+)
+
+if exist "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe" (
     set "CSC_PATH=C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
     echo Using .NET Framework 4.0 compiler (32-bit)
-) else (
-    echo ERROR: .NET Framework compiler not found
-    echo Please ensure .NET Framework 4.0+ is installed
-    pause
-    exit /b 1
+    goto :COMPILER_FOUND
 )
+
+REM Try newer .NET Framework versions
+if exist "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" (
+    set "CSC_PATH=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+    echo Using .NET Framework 4.0 compiler (64-bit)
+    goto :COMPILER_FOUND
+)
+
+REM Check for Visual Studio compilers as fallback
+if exist "C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\Roslyn\csc.exe" (
+    set "CSC_PATH=C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\Roslyn\csc.exe"
+    echo Using Visual Studio 2022 Professional compiler
+    goto :COMPILER_FOUND
+)
+
+if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\Roslyn\csc.exe" (
+    set "CSC_PATH=C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\Roslyn\csc.exe"
+    echo Using Visual Studio 2022 Community compiler
+    goto :COMPILER_FOUND
+)
+
+if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\Roslyn\csc.exe" (
+    set "CSC_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\Roslyn\csc.exe"
+    echo Using Visual Studio 2019 Professional compiler
+    goto :COMPILER_FOUND
+)
+
+echo ERROR: No C# compiler found
+echo.
+echo Searched locations:
+echo - C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe
+echo - C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe
+echo - Visual Studio 2022/2019 compilers
+echo.
+echo Please ensure .NET Framework 4.0+ or Visual Studio is installed
+pause
+exit /b 1
+
+:COMPILER_FOUND
 
 echo.
 echo Compiling with GAC references...

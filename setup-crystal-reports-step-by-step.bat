@@ -8,18 +8,53 @@ echo ================================================
 
 echo Searching for Crystal Reports 2020 installations...
 
-REM Crystal Reports 2020 common paths
-set CR2020_PATHS[0]="C:\Program Files (x86)\SAP BusinessObjects\Crystal Reports for .NET Framework 4.0"
-set CR2020_PATHS[1]="C:\Program Files\SAP BusinessObjects\Crystal Reports for .NET Framework 4.0"  
-set CR2020_PATHS[2]="C:\Program Files (x86)\Business Objects\Crystal Reports 2020"
-set CR2020_PATHS[3]="C:\Program Files\Business Objects\Crystal Reports 2020"
+REM Crystal Reports 2020 common paths - using variables instead of arrays
+set "CR_PATH1=C:\Program Files (x86)\SAP BusinessObjects\Crystal Reports for .NET Framework 4.0"
+set "CR_PATH2=C:\Program Files\SAP BusinessObjects\Crystal Reports for .NET Framework 4.0"
+set "CR_PATH3=C:\Program Files (x86)\Business Objects\Crystal Reports 2020"
+set "CR_PATH4=C:\Program Files\Business Objects\Crystal Reports 2020"
 
 set FOUND_CR=0
-set CR_BASE=""
+set "CR_BASE="
 
-for /L %%i in (0,1,3) do (
-    call :CHECK_CR_PATH %%i
+REM Check each path individually
+if exist "%CR_PATH1%" (
+    echo FOUND: Crystal Reports at "%CR_PATH1%"
+    set FOUND_CR=1
+    set "CR_BASE=%CR_PATH1%"
+    goto :FOUND_PATH
+) else (
+    echo NOT FOUND: "%CR_PATH1%"
 )
+
+if exist "%CR_PATH2%" (
+    echo FOUND: Crystal Reports at "%CR_PATH2%"
+    set FOUND_CR=1
+    set "CR_BASE=%CR_PATH2%"
+    goto :FOUND_PATH
+) else (
+    echo NOT FOUND: "%CR_PATH2%"
+)
+
+if exist "%CR_PATH3%" (
+    echo FOUND: Crystal Reports at "%CR_PATH3%"
+    set FOUND_CR=1
+    set "CR_BASE=%CR_PATH3%"
+    goto :FOUND_PATH
+) else (
+    echo NOT FOUND: "%CR_PATH3%"
+)
+
+if exist "%CR_PATH4%" (
+    echo FOUND: Crystal Reports at "%CR_PATH4%"
+    set FOUND_CR=1
+    set "CR_BASE=%CR_PATH4%"
+    goto :FOUND_PATH
+) else (
+    echo NOT FOUND: "%CR_PATH4%"
+)
+
+:FOUND_PATH
 
 if %FOUND_CR%==0 (
     echo.
@@ -38,36 +73,44 @@ echo.
 echo STEP 2: Locate Required DLLs
 echo =============================
 
-set CR_ENGINE=""
-set CR_SHARED=""
-set CR_REPORTSOURCE=""
+set "CR_ENGINE="
+set "CR_SHARED="
+set "CR_REPORTSOURCE="
 
-REM Try different subdirectories
-set SUBDIRS[0]="Common\SAP BusinessObjects Enterprise XI 4.0\win64_x64"
-set SUBDIRS[1]="Common\SAP BusinessObjects Enterprise XI 4.0\win32_x86"
-set SUBDIRS[2]="Assemblies"
-set SUBDIRS[3]="RedistFolders\dotnet_20"
-set SUBDIRS[4]="RedistFolders\dotnet_40"
+REM Try different subdirectories - using individual variables
+set "SUBDIR1=Common\SAP BusinessObjects Enterprise XI 4.0\win64_x64"
+set "SUBDIR2=Common\SAP BusinessObjects Enterprise XI 4.0\win32_x86"
+set "SUBDIR3=Assemblies"
+set "SUBDIR4=RedistFolders\dotnet_20"
+set "SUBDIR5=RedistFolders\dotnet_40"
 
-for /L %%i in (0,1,4) do (
-    call :CHECK_DLLS %%i
-)
+REM Check each subdirectory
+call :CHECK_SUBDIR "%SUBDIR1%"
+call :CHECK_SUBDIR "%SUBDIR2%"
+call :CHECK_SUBDIR "%SUBDIR3%"
+call :CHECK_SUBDIR "%SUBDIR4%"
+call :CHECK_SUBDIR "%SUBDIR5%"
 
 if "%CR_ENGINE%"=="" (
-    echo ERROR: Could not find CrystalDecisions.CrystalReports.Engine.dll
+    echo ERROR: Could not find CrystalDecisions.CrystalReports.Engine.dll in standard locations
     echo.
     echo Searching entire Crystal Reports directory...
     for /f "delims=" %%i in ('dir "%CR_BASE%" /s /b /a-d 2^>nul ^| findstr "CrystalDecisions.CrystalReports.Engine.dll"') do (
-        set CR_ENGINE="%%i"
+        set "CR_ENGINE=%%i"
         echo FOUND: %%i
+        goto :FOUND_ENGINE
     )
+    :FOUND_ENGINE
 )
 
 if "%CR_SHARED%"=="" (
+    echo Searching for CrystalDecisions.Shared.dll...
     for /f "delims=" %%i in ('dir "%CR_BASE%" /s /b /a-d 2^>nul ^| findstr "CrystalDecisions.Shared.dll"') do (
-        set CR_SHARED="%%i"
+        set "CR_SHARED=%%i"
         echo FOUND: %%i
+        goto :FOUND_SHARED
     )
+    :FOUND_SHARED
 )
 
 if "%CR_ENGINE%"=="" (
@@ -266,35 +309,20 @@ echo.
 pause
 goto :EOF
 
-:CHECK_CR_PATH
-setlocal enabledelayedexpansion
-set idx=%~1
-set path=!CR2020_PATHS[%idx%]!
-if exist %path% (
-    echo FOUND: Crystal Reports at %path%
-    set FOUND_CR=1
-    set CR_BASE=%path%
-) else (
-    echo NOT FOUND: %path%
-)
-endlocal & set FOUND_CR=%FOUND_CR% & set CR_BASE=%CR_BASE%
-goto :EOF
-
-:CHECK_DLLS
-setlocal enabledelayedexpansion
-set idx=%~1
-set subdir=!SUBDIRS[%idx%]!
-set fullpath=%CR_BASE%\%subdir%
-if exist %fullpath% (
-    echo Checking: %fullpath%
-    if exist "%fullpath%\CrystalDecisions.CrystalReports.Engine.dll" (
-        set CR_ENGINE="%fullpath%\CrystalDecisions.CrystalReports.Engine.dll"
+:CHECK_SUBDIR
+set "CURRENT_SUBDIR=%~1"
+set "FULLPATH=%CR_BASE%\%CURRENT_SUBDIR%"
+if exist "%FULLPATH%" (
+    echo Checking: "%FULLPATH%"
+    if exist "%FULLPATH%\CrystalDecisions.CrystalReports.Engine.dll" (
+        set "CR_ENGINE=%FULLPATH%\CrystalDecisions.CrystalReports.Engine.dll"
         echo   FOUND: CrystalDecisions.CrystalReports.Engine.dll
     )
-    if exist "%fullpath%\CrystalDecisions.Shared.dll" (
-        set CR_SHARED="%fullpath%\CrystalDecisions.Shared.dll"
+    if exist "%FULLPATH%\CrystalDecisions.Shared.dll" (
+        set "CR_SHARED=%FULLPATH%\CrystalDecisions.Shared.dll"
         echo   FOUND: CrystalDecisions.Shared.dll
     )
+) else (
+    echo NOT FOUND: "%FULLPATH%"
 )
-endlocal & set CR_ENGINE=%CR_ENGINE% & set CR_SHARED=%CR_SHARED%
 goto :EOF 

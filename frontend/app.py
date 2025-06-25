@@ -511,18 +511,43 @@ def main():
                 # Upload to backend
                 result = upload_report(uploaded_file.getvalue(), uploaded_file.name)
                 
+                # Debug information
+                st.write("DEBUG - Upload result:", result)
+                
                 if result.get("success"):
                     st.success(f"SUCCESS: {result.get('message', 'Report analyzed successfully!')}")
                     
                     # Store in session state
-                    st.session_state.current_report_id = result.get('report_id')
-                    st.session_state.current_metadata = result.get('metadata')
+                    report_id = result.get('report_id')
+                    metadata = result.get('metadata')
+                    
+                    # Debug session state update
+                    st.write(f"DEBUG - Report ID: {report_id}")
+                    st.write(f"DEBUG - Metadata keys: {list(metadata.keys()) if metadata else 'None'}")
+                    
+                    if report_id and metadata:
+                        st.session_state.current_report_id = report_id
+                        st.session_state.current_metadata = metadata
+                        st.write("DEBUG - Session state updated successfully")
+                        
+                        # Force refresh to show tabs
+                        st.rerun()
+                    else:
+                        st.error("ERROR: Missing report_id or metadata in response")
                 else:
                     st.error(f"ERROR: {result.get('message', 'Upload failed')}")
+                    st.write("DEBUG - Full error response:", result)
     
     # Display Q&A interface if report is loaded
     if st.session_state.current_report_id and st.session_state.current_metadata:
         st.divider()
+        
+        # Debug session state
+        st.write("DEBUG - Session State:")
+        st.write(f"- Report ID: {st.session_state.current_report_id}")
+        st.write(f"- Metadata available: {bool(st.session_state.current_metadata)}")
+        if st.session_state.current_metadata:
+            st.write(f"- Metadata keys: {list(st.session_state.current_metadata.keys())}")
         
         # Create tabs for different views
         tab1, tab2, tab3, tab4 = st.tabs(["AI Assistant", "Report Editor", "Report Analysis", "Raw Data"])

@@ -106,7 +106,7 @@ async def upload_report(file: UploadFile = File(...)):
             temp_file_path = temp_file.name
         
         # Parse the report
-        result = await report_parser.parse_report(temp_file_path)
+        result = await report_parser.parse_report(temp_file_path, file.filename)
         
         # Store metadata for Q&A (Week 2 addition)
         qa_service.store_report_metadata(result.report_id, result.metadata)

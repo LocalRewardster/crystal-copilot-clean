@@ -19,7 +19,7 @@ class ReportParser:
     def __init__(self):
         self.rpttoxml_path = os.getenv('RPTTOXML_PATH', 'RptToXml.exe')
 
-    async def parse_report(self, rpt_file_path: str) -> 'ParseResult':
+    async def parse_report(self, rpt_file_path: str, original_filename: str = None) -> 'ParseResult':
         """
         Parse Crystal Report file to XML then normalize to JSON
 
@@ -27,6 +27,10 @@ class ReportParser:
         1. Shell out to RptToXml CLI
         2. Convert XML to dictionary
         3. Normalize and return metadata
+        
+        Args:
+            rpt_file_path: Path to the .rpt file
+            original_filename: Original filename (used to override temp filename in report name)
         """
 
         # Generate unique report ID
@@ -39,7 +43,7 @@ class ReportParser:
         xml_dict = xmltodict.parse(xml_content)
 
         # Normalize to JSON metadata
-        metadata = self._normalize_xml_to_json(xml_dict)
+        metadata = self._normalize_xml_to_json(xml_dict, original_filename)
 
         return ParseResult(
             report_id=report_id,
@@ -516,7 +520,7 @@ class ReportParser:
         </DataSource>
     </DataSources>"""
 
-    def _normalize_xml_to_json(self, xml_dict: Dict) -> Dict:
+    def _normalize_xml_to_json(self, xml_dict: Dict, original_filename: str = None) -> Dict:
         """Normalize XML dictionary to clean JSON metadata"""
 
         # Handle both real RptToXml.exe output and mock data
@@ -532,9 +536,16 @@ class ReportParser:
         print(f"DEBUG: Extracted report name from XML: '{extracted_name}'")
         print(f"DEBUG: ReportInfo keys: {list(report_info.keys())}")
         
+        # Use original filename if available and if extracted name looks like temp filename
+        final_name = extracted_name
+        if original_filename and ('tmp' in extracted_name.lower() or len(extracted_name) > 20):
+            # Remove .rpt extension and use original filename
+            final_name = Path(original_filename).stem
+            print(f"DEBUG: Using original filename '{final_name}' instead of temp name '{extracted_name}'")
+        
         metadata = {
             'report_info': {
-                'name': extracted_name,
+                'name': final_name,
                 'version': report_info.get('ReportVersion', report_info.get('Version', 'Unknown')),
                 'creation_date': report_info.get('CreationDate', 'Unknown'),
                 'author': report_info.get('Author', 'Unknown'),

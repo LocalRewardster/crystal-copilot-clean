@@ -863,7 +863,7 @@ class ReportRenderer:
         
         /* Context Menu Styles */
         .context-menu {
-            position: absolute;
+            position: fixed;
             background: white;
             border: 1px solid #e5e7eb;
             border-radius: 8px;
@@ -1171,6 +1171,22 @@ class ReportRenderer:
                 e.preventDefault();
                 e.stopPropagation();
                 
+                // Debug: Add visual indicator at cursor position
+                const indicator = document.createElement('div');
+                indicator.style.cssText = `
+                    position: fixed;
+                    left: ${e.clientX - 5}px;
+                    top: ${e.clientY - 5}px;
+                    width: 10px;
+                    height: 10px;
+                    background: red;
+                    border-radius: 50%;
+                    z-index: 10000;
+                    pointer-events: none;
+                `;
+                document.body.appendChild(indicator);
+                setTimeout(() => indicator.remove(), 2000);
+                
                 // Debug: Log mouse coordinates
                 console.log('Right-click at:', e.clientX, e.clientY, 'on object:', reportObject.id);
                 
@@ -1328,39 +1344,49 @@ class ReportRenderer:
             // Add to DOM first (hidden) to get dimensions
             contextMenu.style.visibility = 'hidden';
             contextMenu.style.display = 'block';
+            contextMenu.style.position = 'fixed'; // Ensure fixed positioning
             document.body.appendChild(overlay);
             document.body.appendChild(contextMenu);
             
             // Get menu dimensions after adding to DOM
             const menuRect = contextMenu.getBoundingClientRect();
             
-            // Calculate position based on mouse coordinates
+            // Calculate position based on mouse coordinates (relative to viewport)
             let left = event.clientX;
             let top = event.clientY;
             
             // Debug: Log positioning info
-            console.log('Original position:', left, top);
+            console.log('Mouse coordinates:', event.clientX, event.clientY);
+            console.log('Page scroll:', window.pageXOffset, window.pageYOffset);
             console.log('Menu dimensions:', menuRect.width, menuRect.height);
-            console.log('Window dimensions:', window.innerWidth, window.innerHeight);
+            console.log('Viewport dimensions:', window.innerWidth, window.innerHeight);
             
-            // Add some offset so menu doesn't appear directly under cursor
-            left += 2;
-            top += 2;
+            // Add small offset so menu doesn't appear directly under cursor
+            left += 5;
+            top += 5;
             
-            // Adjust position if menu would go off screen
+            // Adjust position if menu would go off screen (right edge)
             if (left + menuRect.width > window.innerWidth) {
-                left = event.clientX - menuRect.width - 2;
-            }
-            if (top + menuRect.height > window.innerHeight) {
-                top = event.clientY - menuRect.height - 2;
+                left = event.clientX - menuRect.width - 5;
             }
             
-            // Ensure menu doesn't go off the left or top edge
-            if (left < 0) left = 5;
-            if (top < 0) top = 5;
+            // Adjust position if menu would go off screen (bottom edge)
+            if (top + menuRect.height > window.innerHeight) {
+                top = event.clientY - menuRect.height - 5;
+            }
+            
+            // Ensure menu doesn't go off the left edge
+            if (left < 5) {
+                left = 5;
+            }
+            
+            // Ensure menu doesn't go off the top edge
+            if (top < 5) {
+                top = 5;
+            }
             
             // Debug: Log final position
-            console.log('Final position:', left, top);
+            console.log('Final calculated position:', left, top);
             
             // Position and show the menu
             contextMenu.style.left = left + 'px';

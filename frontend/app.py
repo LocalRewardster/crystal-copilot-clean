@@ -1,7 +1,6 @@
 """
-Crystal Copilot MVP - Streamlit Frontend
-Drag-and-drop interface for Crystal Reports upload and analysis
-Week 2: Added GPT-4o Q&A functionality
+Crystal Copilot - Professional B2B Interface
+Modern Crystal Reports modernization platform with sidebar navigation
 """
 
 import json
@@ -9,13 +8,300 @@ import requests
 import streamlit as st
 from typing import Dict, Any, List
 
-# Configure Streamlit page
+# Configure Streamlit page with modern styling
 st.set_page_config(
-    page_title="Crystal Copilot MVP",
-    page_icon="🔷",
+    page_title="Crystal Copilot",
+    page_icon="CR",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Custom CSS for Loom-inspired professional layout
+st.markdown("""
+<style>
+    /* Hide Streamlit default elements */
+    .stApp > header {
+        background-color: transparent;
+    }
+    
+    .stApp {
+        background: #fafafa;
+        min-height: 100vh;
+    }
+    
+    /* Main container styling */
+    .main .block-container {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+        max-width: 100%;
+        margin: 0;
+        padding-left: 0;
+        padding-right: 0;
+    }
+    
+    /* Show sidebar with Loom-style design */
+    .css-1d391kg {
+        display: block !important;
+        background: #ffffff;
+        border-right: 1px solid #e5e7eb;
+        width: 280px !important;
+        min-width: 280px !important;
+        max-width: 280px !important;
+        padding: 1rem;
+    }
+    
+    /* Sidebar content styling */
+    .css-1d391kg .css-1v0mbdj {
+        color: #374151;
+    }
+    
+    /* Main content area */
+    .css-18e3th9 {
+        background: #ffffff;
+        margin-left: 280px;
+        padding: 2rem;
+        min-height: 100vh;
+    }
+    
+    /* Header styling */
+    .app-header {
+        background: #ffffff;
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid #e5e7eb;
+        margin: -2rem -2rem 2rem -2rem;
+    }
+    
+    .app-title {
+        color: #111827;
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0;
+    }
+    
+    .app-subtitle {
+        color: #6b7280;
+        font-size: 1rem;
+        margin: 0.25rem 0 0 0;
+    }
+    
+    /* Sidebar branding */
+    .sidebar-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem 0 1.5rem 0;
+        border-bottom: 1px solid #e5e7eb;
+        margin-bottom: 1.5rem;
+    }
+    
+    .brand-icon {
+        width: 32px;
+        height: 32px;
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+        font-size: 1rem;
+    }
+    
+    .brand-text {
+        color: #111827;
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0;
+    }
+    
+    /* Navigation sections */
+    .nav-section {
+        margin: 1.5rem 0 0.75rem 0;
+    }
+    
+    .nav-section-title {
+        color: #6b7280;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Navigation buttons */
+    .stButton > button {
+        background: transparent;
+        color: #374151;
+        border: none;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        width: 100%;
+        text-align: left;
+        justify-content: flex-start;
+        margin-bottom: 0.25rem;
+    }
+    
+    .stButton > button:hover {
+        background: #f3f4f6;
+        color: #111827;
+    }
+    
+    .stButton > button[kind="primary"] {
+        background: #3b82f6;
+        color: white;
+    }
+    
+    .stButton > button[kind="primary"]:hover {
+        background: #2563eb;
+        color: white;
+    }
+    
+    /* Content cards */
+    .content-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .content-card h3 {
+        color: #111827;
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem 0;
+    }
+    
+    .content-card p {
+        color: #6b7280;
+        font-size: 0.875rem;
+        margin: 0;
+        line-height: 1.5;
+    }
+    
+    /* Upload area */
+    .upload-area {
+        background: #f9fafb;
+        border: 2px dashed #d1d5db;
+        border-radius: 12px;
+        padding: 3rem 2rem;
+        text-align: center;
+        margin: 1.5rem 0;
+        transition: all 0.3s ease;
+    }
+    
+    .upload-area:hover {
+        border-color: #3b82f6;
+        background: #eff6ff;
+    }
+    
+    .upload-title {
+        color: #111827;
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+    
+    .upload-subtitle {
+        color: #6b7280;
+        font-size: 0.875rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    /* Status indicators */
+    .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.375rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        margin-bottom: 1rem;
+    }
+    
+    .status-healthy {
+        background: #d1fae5;
+        color: #065f46;
+    }
+    
+    .status-error {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    
+    /* Feature grid */
+    .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin: 2rem 0;
+    }
+    
+    .feature-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .feature-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border-color: #3b82f6;
+    }
+    
+    .feature-icon {
+        width: 48px;
+        height: 48px;
+        background: #eff6ff;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #3b82f6;
+        font-weight: 600;
+        font-size: 0.875rem;
+        margin-bottom: 1rem;
+    }
+    
+    .feature-card h3 {
+        color: #111827;
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem 0;
+    }
+    
+    .feature-card p {
+        color: #6b7280;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        margin: 0;
+    }
+    
+    /* Hide Streamlit menu */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* File uploader styling */
+    .stFileUploader > div > div {
+        background: transparent;
+        border: none;
+        padding: 0;
+    }
+    
+    .stFileUploader label {
+        display: none;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Backend API configuration
 API_BASE_URL = "http://localhost:8000"
@@ -129,72 +415,102 @@ def get_visual_preview(report_id: str, command: str = "") -> Dict[str, Any]:
         return {"success": False, "message": str(e)}
 
 def display_qa_interface(report_id: str):
-    """Display Q&A interface for the uploaded report"""
-    
-    st.header("AI Assistant")
-    st.markdown("Use natural language to understand your Crystal Report structure and data flow.")
+    """Display Q&A interface for the uploaded report with modern styling"""
     
     # Check OpenAI status
     openai_status = check_openai_health()
     if openai_status.get("status") == "error":
-        st.warning(f"WARNING: OpenAI API Issue: {openai_status.get('message')}")
-        st.info("NOTE: Set your OPENAI_API_KEY environment variable to enable Q&A functionality.")
+        st.markdown("""
+        <div class="content-card">
+            <h3>AI Services Unavailable</h3>
+            <p>OpenAI API connection issue: {}</p>
+            <p><strong>Note:</strong> Set your OPENAI_API_KEY environment variable to enable Q&A functionality.</p>
+        </div>
+        """.format(openai_status.get('message')), unsafe_allow_html=True)
         return
     
     # Get suggested questions
     suggested_questions = get_suggested_questions(report_id)
     
+    # Question input section
+    st.markdown("""
+    <div class="content-card">
+        <h3>Ask Questions About Your Report</h3>
+        <p>Use natural language to explore your Crystal Reports structure, data sources, and formulas.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
     # Question input
-    col1, col2 = st.columns([3, 1])
+    question = st.text_input(
+        "Enter your question:",
+        placeholder="What data sources does this report use?",
+        help="Ask about report structure, formulas, data sources, or any other aspect"
+    )
     
+    col1, col2 = st.columns([1, 4])
     with col1:
-        question = st.text_input(
-            "Ask a question about your report:",
-            placeholder="e.g., What data sources does this report use?",
-            help="Ask about data sources, fields, formulas, sections, or relationships"
-        )
-    
-    with col2:
-        ask_button = st.button("Ask", type="primary", disabled=not question.strip())
+        ask_button = st.button("Ask Question", type="primary", disabled=not question.strip())
     
     # Suggested questions
     if suggested_questions:
-        st.subheader("Suggested Questions")
-        
-        # Display suggested questions as clickable buttons
+        st.markdown("**Suggested Questions:**")
         cols = st.columns(2)
-        for i, suggested_q in enumerate(suggested_questions):
+        for i, suggested_q in enumerate(suggested_questions[:6]):  # Show up to 6 suggestions
             with cols[i % 2]:
-                if st.button(f"{suggested_q}", key=f"suggested_{i}"):
+                if st.button(f"• {suggested_q}", key=f"suggested_{i}", use_container_width=True):
                     question = suggested_q
                     ask_button = True
     
     # Process question
     if ask_button and question.strip():
-        with st.spinner("Processing your question..."):
-            result = ask_question(report_id, question.strip())
-            
-            if result.get("success"):
-                # Display answer
-                st.subheader("Answer")
-                st.markdown(result.get("answer", "No answer provided"))
+        with st.spinner("Analyzing your question..."):
+            try:
+                response = requests.post(
+                    f"{API_BASE_URL}/reports/{report_id}/ask",
+                    json={"question": question}
+                )
                 
-                # Display confidence and sources if available
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    confidence = result.get("confidence")
-                    if confidence is not None:
-                        st.metric("Confidence", f"{confidence:.1%}")
-                
-                with col2:
-                    sources = result.get("sources", [])
-                    if sources:
-                        st.write("**Sources:**")
-                        for source in sources:
-                            st.write(f"• {source}")
-            else:
-                st.error(f"ERROR: {result.get('answer', 'Failed to get answer')}")
+                if response.status_code == 200:
+                    result = response.json()
+                    answer = result.get("answer", "No answer provided")
+                    
+                    # Display answer in a nice format
+                    st.markdown("""
+                    <div class="content-card">
+                        <h4>Answer</h4>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.markdown(answer)
+                    
+                    # Show confidence and sources if available
+                    if "confidence" in result:
+                        st.caption(f"Confidence: {result['confidence']:.1%}")
+                    
+                else:
+                    st.error(f"Error: {response.text}")
+                    
+            except requests.exceptions.RequestException as e:
+                st.error(f"Connection error: {str(e)}")
+            except Exception as e:
+                st.error(f"Error processing question: {str(e)}")
+    
+    # Show conversation history if available
+    if 'qa_history' not in st.session_state:
+        st.session_state.qa_history = []
+    
+    if st.session_state.qa_history:
+        st.markdown("---")
+        st.markdown("### Recent Questions")
+        
+        for i, (q, a) in enumerate(reversed(st.session_state.qa_history[-5:])):  # Show last 5
+            with st.expander(f"Q: {q[:80]}{'...' if len(q) > 80 else ''}"):
+                st.markdown(f"**Question:** {q}")
+                st.markdown(f"**Answer:** {a}")
+    
+    # Add current Q&A to history
+    if ask_button and question.strip() and 'answer' in locals():
+        st.session_state.qa_history.append((question, answer))
 
 def display_metadata(metadata: Dict[str, Any]):
     """Display parsed report metadata in structured format"""
@@ -445,139 +761,375 @@ def display_edit_interface(report_id: str):
         st.info("No edits have been applied to this report yet.")
 
 def main():
-    """Main Streamlit application"""
-    
-    # Header
-    st.title("Crystal Copilot")
-    st.markdown("**Enterprise Crystal Reports modernization platform**")
-    
-    # Sidebar
-    with st.sidebar:
-        st.header("Getting Started")
-        st.markdown("""
-        1. **Upload** your .rpt file
-        2. **Analyze** report structure
-        3. **Ask questions** with AI
-        4. **Make edits** with natural language
-        """)
-        
-        st.header("Platform Features")
-        st.markdown("""
-        - File upload & parsing
-        - Field lineage analysis
-        - **AI Q&A with GPT-4o**
-        - **Natural language editing**
-        """)
-        
-        # OpenAI status check
-        st.header("System Status")
-        openai_status = check_openai_health()
-        if openai_status.get("status") == "healthy":
-            st.success("OpenAI API Connected")
-        else:
-            st.error("OpenAI API Issue")
+    """Main Streamlit application with Loom-inspired layout"""
     
     # Initialize session state
     if 'current_report_id' not in st.session_state:
         st.session_state.current_report_id = None
     if 'current_metadata' not in st.session_state:
         st.session_state.current_metadata = None
+    if 'current_page' not in st.session_state:
+        st.session_state.current_page = 'upload'
     
-    # Main content area
-    st.header("Upload Crystal Report")
+    # Sidebar Navigation (Loom-style)
+    with st.sidebar:
+        # Brand section
+        st.markdown("""
+        <div class="sidebar-brand">
+            <div class="brand-icon">CC</div>
+            <div class="brand-text">Crystal Copilot</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Current report status (always visible)
+        if st.session_state.current_report_id:
+            metadata = st.session_state.current_metadata
+            report_name = metadata.get('report_name', 'Unknown Report') if metadata else 'Unknown Report'
+            
+            st.markdown('<div class="nav-section-title">Current Report</div>', unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="content-card" style="background: #eff6ff; border-color: #3b82f6;">
+                <h4 style="margin: 0 0 0.5rem 0; color: #1e40af; font-size: 1rem; font-weight: 600;">{report_name}</h4>
+                <p style="margin: 0 0 0.5rem 0; color: #3730a3; font-size: 0.75rem;">Report ID: {st.session_state.current_report_id[:8]}...</p>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+                    <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 500;">
+                        {len(metadata.get("database_tables", [])) if metadata else 0} Tables
+                    </span>
+                    <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 500;">
+                        {len(metadata.get("formulas", [])) if metadata else 0} Formulas
+                    </span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="nav-section-title">No Report Loaded</div>', unsafe_allow_html=True)
+            st.markdown("""
+            <div class="content-card" style="background: #fef3c7; border-color: #f59e0b;">
+                <h4 style="margin: 0 0 0.5rem 0; color: #92400e; font-size: 0.875rem; font-weight: 600;">Upload a Report</h4>
+                <p style="margin: 0; color: #78350f; font-size: 0.75rem;">Select "Upload Report" below to get started with Crystal Reports analysis.</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Main navigation
+        st.markdown('<div class="nav-section-title">Workspace</div>', unsafe_allow_html=True)
+        
+        # Upload button - always visible and clearly labeled
+        upload_button_text = "Upload New Report" if st.session_state.current_report_id else "Upload Report"
+        if st.button(upload_button_text, key="nav_upload", use_container_width=True,
+                    type="primary" if st.session_state.current_page == 'upload' else "secondary"):
+            st.session_state.current_page = 'upload'
+            st.rerun()
+        
+        # Report tools (only show if report is loaded)
+        if st.session_state.current_report_id:
+            st.markdown('<div class="nav-section-title">Analysis Tools</div>', unsafe_allow_html=True)
+            
+            if st.button("AI Assistant", key="nav_ai", use_container_width=True,
+                        type="primary" if st.session_state.current_page == 'ai_assistant' else "secondary"):
+                st.session_state.current_page = 'ai_assistant'
+                st.rerun()
+            
+            if st.button("Report Editor", key="nav_editor", use_container_width=True,
+                        type="primary" if st.session_state.current_page == 'editor' else "secondary"):
+                st.session_state.current_page = 'editor'
+                st.rerun()
+            
+            if st.button("Report Analysis", key="nav_analysis", use_container_width=True,
+                        type="primary" if st.session_state.current_page == 'analysis' else "secondary"):
+                st.session_state.current_page = 'analysis'
+                st.rerun()
+            
+            if st.button("Raw Data", key="nav_raw", use_container_width=True,
+                        type="primary" if st.session_state.current_page == 'raw_data' else "secondary"):
+                st.session_state.current_page = 'raw_data'
+                st.rerun()
+        
+        # System status
+        st.markdown('<div class="nav-section-title">System Status</div>', unsafe_allow_html=True)
+        
+        openai_status = check_openai_health()
+        if openai_status.get("status") == "healthy":
+            st.markdown('<div class="status-indicator status-healthy">AI Services Online</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="status-indicator status-error">AI Services Offline</div>', unsafe_allow_html=True)
     
-    # File uploader
+    # Main content area with header
+    if st.session_state.current_report_id:
+        metadata = st.session_state.current_metadata
+        report_name = metadata.get('report_name', 'Unknown Report') if metadata else 'Unknown Report'
+        
+        st.markdown(f"""
+        <div class="app-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1 class="app-title">Crystal Copilot</h1>
+                    <p class="app-subtitle">Working on: <strong style="color: #3b82f6;">{report_name}</strong></p>
+                </div>
+                <div style="text-align: right;">
+                    <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 0.75rem; display: inline-block;">
+                        <div style="color: #1e40af; font-weight: 600; font-size: 0.875rem;">Report Loaded</div>
+                        <div style="color: #3730a3; font-size: 0.75rem; margin-top: 0.25rem;">
+                            {len(metadata.get("database_tables", [])) if metadata else 0} Tables • 
+                            {len(metadata.get("formulas", [])) if metadata else 0} Formulas • 
+                            {len(metadata.get("sections", [])) if metadata else 0} Sections
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div class="app-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1 class="app-title">Crystal Copilot</h1>
+                    <p class="app-subtitle">Enterprise Crystal Reports modernization platform</p>
+                </div>
+                <div style="text-align: right;">
+                    <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 0.75rem; display: inline-block;">
+                        <div style="color: #92400e; font-weight: 600; font-size: 0.875rem;">No Report Loaded</div>
+                        <div style="color: #78350f; font-size: 0.75rem; margin-top: 0.25rem;">Upload a .rpt file to get started</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Content based on current page
+    if st.session_state.current_page == 'upload':
+        display_upload_interface()
+    elif st.session_state.current_page == 'ai_assistant':
+        if st.session_state.current_report_id:
+            display_qa_interface(st.session_state.current_report_id)
+        else:
+            st.markdown("""
+            <div class="content-card">
+                <h3>No Report Loaded</h3>
+                <p>Please upload a Crystal Reports file first to use the AI Assistant.</p>
+            </div>
+            """, unsafe_allow_html=True)
+    elif st.session_state.current_page == 'editor':
+        if st.session_state.current_report_id:
+            display_editor_interface(st.session_state.current_report_id)
+        else:
+            st.markdown("""
+            <div class="content-card">
+                <h3>No Report Loaded</h3>
+                <p>Please upload a Crystal Reports file first to use the Report Editor.</p>
+            </div>
+            """, unsafe_allow_html=True)
+    elif st.session_state.current_page == 'analysis':
+        if st.session_state.current_report_id:
+            display_analysis_interface(st.session_state.current_report_id)
+        else:
+            st.markdown("""
+            <div class="content-card">
+                <h3>No Report Loaded</h3>
+                <p>Please upload a Crystal Reports file first to view the analysis.</p>
+            </div>
+            """, unsafe_allow_html=True)
+    elif st.session_state.current_page == 'raw_data':
+        if st.session_state.current_report_id:
+            display_raw_data_interface(st.session_state.current_report_id)
+        else:
+            st.markdown("""
+            <div class="content-card">
+                <h3>No Report Loaded</h3>
+                <p>Please upload a Crystal Reports file first to view the raw data.</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+def display_upload_interface():
+    """Loom-style upload interface with organized content cards"""
+    
+    # Show current report status if one is loaded
+    if st.session_state.current_report_id:
+        metadata = st.session_state.current_metadata
+        report_name = metadata.get('report_name', 'Unknown Report') if metadata else 'Unknown Report'
+        
+        st.markdown(f"""
+        <div class="content-card" style="background: #eff6ff; border-color: #3b82f6; margin-bottom: 2rem;">
+            <h3 style="color: #1e40af; margin-bottom: 1rem;">Currently Working On: {report_name}</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #1e40af;">{len(metadata.get("database_tables", [])) if metadata else 0}</div>
+                    <div style="font-size: 0.875rem; color: #3730a3;">Database Tables</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #1e40af;">{len(metadata.get("formulas", [])) if metadata else 0}</div>
+                    <div style="font-size: 0.875rem; color: #3730a3;">Formulas</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #1e40af;">{len(metadata.get("sections", [])) if metadata else 0}</div>
+                    <div style="font-size: 0.875rem; color: #3730a3;">Sections</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #1e40af;">{len(metadata.get("parameters", [])) if metadata else 0}</div>
+                    <div style="font-size: 0.875rem; color: #3730a3;">Parameters</div>
+                </div>
+            </div>
+            <p style="color: #3730a3; margin: 0; font-size: 0.875rem;">
+                Report ID: {st.session_state.current_report_id} • Use the tools in the sidebar to analyze and edit this report.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("### Upload a New Report")
+        st.markdown("Upload a different Crystal Reports file to replace the current one:")
+    else:
+        st.markdown("### Get Started")
+        st.markdown("Upload your first Crystal Reports file to begin analysis:")
+    
+    # Upload section
+    st.markdown("""
+    <div class="upload-area">
+        <div class="upload-title">Upload Crystal Reports File</div>
+        <div class="upload-subtitle">Select a .rpt file to begin AI-powered analysis and modernization</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     uploaded_file = st.file_uploader(
-        "Choose a Crystal Reports file (.rpt)",
+        "Choose a Crystal Reports file",
         type=['rpt'],
-        help="Upload a Crystal Reports file (≤ 25MB) to analyze its structure and ask questions"
+        help="Upload a .rpt file to analyze its structure and content",
+        label_visibility="collapsed"
     )
     
     if uploaded_file is not None:
-        # File info
-        file_size_mb = len(uploaded_file.getvalue()) / (1024 * 1024)
+        # Show warning if replacing existing report
+        if st.session_state.current_report_id:
+            st.warning("⚠️ Uploading a new file will replace the current report. All unsaved work will be lost.")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Cancel Upload", type="secondary", use_container_width=True):
+                    st.rerun()
+            with col2:
+                proceed = st.button("Continue with Upload", type="primary", use_container_width=True)
+        else:
+            proceed = True
+        
+        if proceed:
+            with st.spinner("Processing Crystal Reports file..."):
+                try:
+                    # Upload file to backend
+                    files = {"file": (uploaded_file.name, uploaded_file.read(), "application/octet-stream")}
+                    response = requests.post(f"{API_BASE_URL}/upload", files=files)
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        report_id = result["report_id"]
+                        
+                        # Store in session state
+                        st.session_state.current_report_id = report_id
+                        st.session_state.current_metadata = result.get("metadata", {})
+                        
+                        st.success(f"Successfully processed: {uploaded_file.name}")
+                        
+                        # Auto-navigate to AI Assistant
+                        st.session_state.current_page = 'ai_assistant'
+                        st.rerun()
+                        
+                    else:
+                        st.error(f"Upload failed: {response.text}")
+                        
+                except requests.exceptions.RequestException as e:
+                    st.error(f"Connection error: {str(e)}")
+                except Exception as e:
+                    st.error(f"Error processing file: {str(e)}")
+    
+    # Feature overview
+    if not st.session_state.current_report_id:
+        st.markdown("### Platform Capabilities")
+        
+        st.markdown('<div class="feature-grid">', unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns(3)
+        
         with col1:
-            st.metric("Filename", uploaded_file.name)
+            st.markdown("""
+            <div class="feature-card">
+                <div class="feature-icon">AI</div>
+                <h3>AI-Powered Analysis</h3>
+                <p>Ask natural language questions about your Crystal Reports and get instant insights about data sources, formulas, and structure.</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
         with col2:
-            st.metric("Size", f"{file_size_mb:.2f} MB")
+            st.markdown("""
+            <div class="feature-card">
+                <div class="feature-icon">EDIT</div>
+                <h3>Smart Editing</h3>
+                <p>Modify your reports using natural language commands. Update formulas, change formatting, and restructure layouts effortlessly.</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
         with col3:
-            st.metric("Type", uploaded_file.type or "Crystal Report")
-        
-        # Upload button
-        if st.button("Analyze Report", type="primary"):
-            with st.spinner("Uploading and analyzing report..."):
-                # Upload to backend
-                result = upload_report(uploaded_file.getvalue(), uploaded_file.name)
-                
-                if result.get("success"):
-                    st.success(f"SUCCESS: {result.get('message', 'Report analyzed successfully!')}")
-                    
-                    # Store in session state
-                    report_id = result.get('report_id')
-                    metadata = result.get('metadata')
-                    
-                    if report_id and metadata:
-                        st.session_state.current_report_id = report_id
-                        st.session_state.current_metadata = metadata
-                        
-                        # Force refresh to show tabs
-                        st.rerun()
-                    else:
-                        st.error("ERROR: Missing report_id or metadata in response")
-                else:
-                    st.error(f"ERROR: {result.get('message', 'Upload failed')}")
-    
-    # Display Q&A interface if report is loaded
-    if st.session_state.current_report_id and st.session_state.current_metadata:
-        st.divider()
-        
-        # Create tabs for different views
-        tab1, tab2, tab3, tab4 = st.tabs(["AI Assistant", "Report Editor", "Report Analysis", "Raw Data"])
-        
-        with tab1:
-            display_qa_interface(st.session_state.current_report_id)
-        
-        with tab2:
-            display_edit_interface(st.session_state.current_report_id)
-        
-        with tab3:
-            display_metadata(st.session_state.current_metadata)
-        
-        with tab4:
-            st.subheader("Raw Metadata JSON")
-            st.json(st.session_state.current_metadata)
-    
-    # Demo section (only show if no report loaded)
-    if not st.session_state.current_report_id:
-        st.divider()
-        st.header("Platform Capabilities")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Current Features")
             st.markdown("""
-            Available now:
-            - *"What data sources does this report use?"*
-            - *"Which fields use formulas?"*
-            - *"Show me all calculated fields"*
-            - *"Rename 'Customer Name' to 'Client Name'"*
-            - *"Hide the 'Internal ID' field"*
-            - *"Move 'Total' to footer section"*
-            """)
+            <div class="feature-card">
+                <div class="feature-icon">VIEW</div>
+                <h3>Visual Preview</h3>
+                <p>See your reports rendered as modern HTML with preserved formatting and structure for easy review and validation.</p>
+            </div>
+            """, unsafe_allow_html=True)
         
-        with col2:
-            st.subheader("Enterprise Ready")
-            st.markdown("""
-            Professional capabilities:
-            - *Secure report processing*
-            - *Edit history & version control*
-            - *Preview before apply*
-            - *Structured change management*
-            - *Integration-ready APIs*
-            """)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+def display_ai_assistant_interface():
+    """AI Assistant page with modern layout"""
+    
+    st.markdown("""
+    <div class="main-header">
+        <h1>AI Assistant</h1>
+        <p>Ask natural language questions about your Crystal Report structure, data sources, and logic</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    display_qa_interface(st.session_state.current_report_id)
+
+def display_editor_interface(report_id: str):
+    """Report Editor page with modern layout"""
+    
+    st.markdown("""
+    <div class="main-header">
+        <h1>Report Editor</h1>
+        <p>Modify your Crystal Report using natural language commands with preview and version control</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    display_edit_interface(report_id)
+
+def display_analysis_interface(report_id: str):
+    """Report Analysis page with modern layout"""
+    
+    st.markdown("""
+    <div class="main-header">
+        <h1>Report Analysis</h1>
+        <p>Comprehensive analysis of your Crystal Report structure, data sources, and field relationships</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    display_metadata(st.session_state.current_metadata)
+
+def display_raw_data_interface(report_id: str):
+    """Raw Data page with modern layout"""
+    
+    st.markdown("""
+    <div class="main-header">
+        <h1>Raw Data</h1>
+        <p>Complete JSON metadata extracted from your Crystal Report for technical analysis</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="feature-card">
+        <h3>Complete Report Metadata</h3>
+        <p>This is the raw JSON data extracted from your Crystal Report, including all sections, fields, formulas, and data sources.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.json(st.session_state.current_metadata)
 
 if __name__ == "__main__":
     main()

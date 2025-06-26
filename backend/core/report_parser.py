@@ -110,6 +110,9 @@ class ReportParser:
     def _clean_malformed_xml(self, xml_content: str) -> str:
         """Clean up malformed XML output from RptToXml.exe"""
         
+        print(f"DEBUG: Original XML length: {len(xml_content)}")
+        print(f"DEBUG: CrystalReport tag count: {xml_content.count('<CrystalReport>')}")
+        
         # Check if XML has duplicate content (common RptToXml.exe bug)
         if xml_content.count('<CrystalReport>') > 1:
             print("Detected duplicate XML content, cleaning up...")
@@ -133,6 +136,15 @@ class ReportParser:
             # Validate it's properly formed
             if clean_xml.count('<CrystalReport>') == 1 and clean_xml.count('</CrystalReport>') == 1:
                 print(f"Cleaned XML: Reduced from {len(xml_content)} to {len(clean_xml)} characters")
+                
+                # Debug: Check if name is in cleaned XML
+                if '<Name>SampleInvoice</Name>' in clean_xml:
+                    print("DEBUG: SampleInvoice name found in cleaned XML")
+                else:
+                    print("DEBUG: SampleInvoice name NOT found in cleaned XML")
+                    # Show first 500 chars of cleaned XML
+                    print(f"DEBUG: First 500 chars of cleaned XML: {clean_xml[:500]}")
+                
                 return clean_xml
             else:
                 print("Warning: Could not clean malformed XML, attempting to parse as-is")
@@ -514,9 +526,15 @@ class ReportParser:
 
         # Extract key metadata - handle both formats
         report_info = report_data.get('ReportInfo', {})
+        
+        # Debug logging for report name extraction
+        extracted_name = report_info.get('Name', 'Unknown')
+        print(f"DEBUG: Extracted report name from XML: '{extracted_name}'")
+        print(f"DEBUG: ReportInfo keys: {list(report_info.keys())}")
+        
         metadata = {
             'report_info': {
-                'name': report_info.get('Name', 'Unknown'),
+                'name': extracted_name,
                 'version': report_info.get('ReportVersion', report_info.get('Version', 'Unknown')),
                 'creation_date': report_info.get('CreationDate', 'Unknown'),
                 'author': report_info.get('Author', 'Unknown'),

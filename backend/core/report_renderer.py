@@ -163,13 +163,16 @@ class ReportRenderer:
         '''
 
     def _render_field_object(self, field_obj: Dict, highlight_changes: Optional[Dict] = None) -> str:
-        """Render a field object"""
+        """Render a field object with enhanced Phase 2 visualization"""
         
         name = field_obj.get('name', 'Field')
         database_field = field_obj.get('database_field', '')
         formula = field_obj.get('formula', '')
         is_hidden = field_obj.get('hidden', False)
         formatting = field_obj.get('formatting', {})
+        
+        # Enhanced: Detect data type from field name and content
+        data_type = self._detect_field_data_type(name, database_field, formula)
         
         # Check for changes
         is_changed = False
@@ -180,15 +183,19 @@ class ReportRenderer:
                     is_changed = True
                     break
         
-        css_class = "field-object"
+        css_class = f"field-object field-type-{data_type.lower()}"
         if is_hidden:
             css_class += " object-hidden"
         if is_changed:
             css_class += " object-changed"
         
-        # Determine source type
-        source_type = "Formula" if formula else "Database"
-        source_value = formula if formula else database_field
+        # Determine source type and enhanced display
+        is_formula = bool(formula)
+        source_type = "Formula" if is_formula else "Database"
+        source_value = formula if is_formula else database_field
+        
+        # Enhanced: Get data type icon and color
+        type_info = self._get_data_type_info(data_type)
         
         # Apply formatting styles
         style_attrs = []
@@ -201,15 +208,122 @@ class ReportRenderer:
         
         style_str = f'style="{"; ".join(style_attrs)}"' if style_attrs else ''
         
+        # Enhanced field object HTML with better visualization
         return f'''
-        <div class="{css_class}" {style_str}>
-            <span class="object-label">{name}</span>
-            <span class="field-source">({source_type})</span>
-            <div class="field-details">{source_value}</div>
+        <div class="{css_class}" {style_str} data-tooltip="Field: {name} | Type: {data_type} | Source: {source_type}">
+            <div class="field-header">
+                <span class="object-label">{name}</span>
+                <div class="field-badges">
+                    <span class="data-type-badge" style="background: {type_info['color']};">
+                        {type_info['icon']} {data_type}
+                    </span>
+                    <span class="source-type-badge {'formula-badge' if is_formula else 'database-badge'}">
+                        {'📝' if is_formula else '🗃️'} {source_type}
+                    </span>
+                </div>
+            </div>
+            <div class="field-content">
+                {self._render_field_source_preview(source_value, is_formula)}
+            </div>
             {('<span class="hidden-indicator">HIDDEN</span>' if is_hidden else '')}
             {('<span class="changed-indicator">CHANGED</span>' if is_changed else '')}
         </div>
         '''
+    
+    def _detect_field_data_type(self, name: str, database_field: str, formula: str) -> str:
+        """Detect field data type from name and content"""
+        
+        name_lower = name.lower()
+        field_lower = database_field.lower()
+        formula_lower = formula.lower()
+        
+        # Date indicators
+        if any(keyword in name_lower for keyword in ['date', 'time', 'created', 'modified', 'updated']):
+            return 'Date'
+        if any(keyword in field_lower for keyword in ['date', 'time', 'timestamp']):
+            return 'Date'
+        if any(keyword in formula_lower for keyword in ['date', 'now()', 'today()']):
+            return 'Date'
+        
+        # Number indicators
+        if any(keyword in name_lower for keyword in ['amount', 'total', 'sum', 'count', 'price', 'cost', 'id', 'number']):
+            return 'Number'
+        if any(keyword in field_lower for keyword in ['amount', 'total', 'price', 'cost', 'id', 'num']):
+            return 'Number'
+        if any(keyword in formula_lower for keyword in ['sum(', 'count(', 'avg(', '+', '-', '*', '/']):
+            return 'Number'
+        
+        # Boolean indicators
+        if any(keyword in name_lower for keyword in ['active', 'enabled', 'visible', 'flag']):
+            return 'Boolean'
+        if any(keyword in formula_lower for keyword in ['true', 'false', 'and', 'or', 'not']):
+            return 'Boolean'
+        
+        # Default to text
+        return 'Text'
+    
+    def _get_data_type_info(self, data_type: str) -> Dict[str, str]:
+        """Get icon and color for data type"""
+        
+        type_mapping = {
+            'Text': {'icon': '📝', 'color': '#6b7280'},
+            'Number': {'icon': '🔢', 'color': '#3b82f6'},
+            'Date': {'icon': '📅', 'color': '#10b981'},
+            'Boolean': {'icon': '☑️', 'color': '#8b5cf6'},
+            'Currency': {'icon': '💰', 'color': '#f59e0b'},
+        }
+        
+        return type_mapping.get(data_type, {'icon': '❓', 'color': '#64748b'})
+    
+    def _render_field_source_preview(self, source_value: str, is_formula: bool) -> str:
+        """Render enhanced source preview with syntax highlighting for formulas"""
+        
+        if not source_value:
+            return '<div class="field-source-empty">No source defined</div>'
+        
+        if is_formula:
+            # Enhanced: Basic syntax highlighting for formulas
+            highlighted_formula = self._highlight_formula_syntax(source_value)
+            return f'''
+            <div class="formula-preview">
+                <div class="formula-label">Formula:</div>
+                <div class="formula-code">{highlighted_formula}</div>
+            </div>
+            '''
+        else:
+            return f'''
+            <div class="database-field-preview">
+                <div class="database-label">Database Field:</div>
+                <div class="database-path">{source_value}</div>
+            </div>
+            '''
+    
+    def _highlight_formula_syntax(self, formula: str) -> str:
+        """Basic syntax highlighting for Crystal Reports formulas"""
+        
+        # Simple highlighting - can be enhanced further
+        highlighted = formula
+        
+        # Highlight functions
+        import re
+        functions = ['SUM', 'COUNT', 'AVG', 'MAX', 'MIN', 'IF', 'ELSE', 'THEN', 'AND', 'OR', 'NOT']
+        for func in functions:
+            pattern = rf'\b{func}\b'
+            highlighted = re.sub(pattern, f'<span class="formula-function">{func}</span>', highlighted, flags=re.IGNORECASE)
+        
+        # Highlight strings
+        highlighted = re.sub(r'"([^"]*)"', r'<span class="formula-string">"$1"</span>', highlighted)
+        
+        # Highlight numbers
+        highlighted = re.sub(r'\b(\d+\.?\d*)\b', r'<span class="formula-number">$1</span>', highlighted)
+        
+        # Highlight operators
+        operators = ['+', '-', '*', '/', '=', '<', '>', '<=', '>=', '<>']
+        for op in operators:
+            escaped_op = re.escape(op)
+            highlighted = re.sub(f'({escaped_op})', r'<span class="formula-operator">$1</span>', highlighted)
+        
+        return highlighted
 
     def _render_picture_object(self, pic_obj: Dict, highlight_changes: Optional[Dict] = None) -> str:
         """Render a picture object"""
@@ -231,22 +345,35 @@ class ReportRenderer:
         '''
 
     def _generate_css_styles(self) -> str:
-        """Generate CSS styles for the report visualization"""
+        """Generate enhanced CSS styles for the report visualization"""
         
         return """
         .crystal-report {
-            border: 2px solid #ddd;
+            border: 2px solid #e5e7eb;
             background: white;
-            font-family: Arial, sans-serif;
-            max-width: 800px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
             margin: 0 auto;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .crystal-report::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #3b82f6, #1d4ed8);
         }
         
         .report-title-bar {
-            background: #f8f9fa;
-            padding: 12px 16px;
-            border-bottom: 1px solid #ddd;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            padding: 16px 20px;
+            border-bottom: 2px solid #e2e8f0;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -254,149 +381,257 @@ class ReportRenderer:
         
         .report-title-bar h3 {
             margin: 0;
-            color: #333;
-            font-size: 18px;
+            color: #1e293b;
+            font-size: 20px;
+            font-weight: 600;
         }
         
         .report-info {
-            font-size: 12px;
-            color: #666;
+            font-size: 13px;
+            color: #64748b;
+            background: #f1f5f9;
+            padding: 4px 8px;
+            border-radius: 4px;
         }
         
         .report-section {
-            border-bottom: 1px solid #eee;
-            min-height: 60px;
+            border-bottom: 1px solid #f1f5f9;
+            min-height: 80px;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .report-section:hover {
+            background: #fafbfc;
+            box-shadow: inset 0 0 0 1px #e2e8f0;
         }
         
         .section-header {
-            background: #f1f3f4;
-            padding: 8px 16px;
-            border-bottom: 1px solid #e0e0e0;
-            font-weight: bold;
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            padding: 12px 20px;
+            border-bottom: 1px solid #cbd5e1;
+            font-weight: 600;
             font-size: 14px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-        }
-        
-        .section-name {
-            color: #1976d2;
-        }
-        
-        .section-content {
-            padding: 12px 16px;
-            min-height: 40px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            align-items: flex-start;
-        }
-        
-        .text-object, .field-object, .picture-object {
-            border: 1px solid #e0e0e0;
-            padding: 8px 12px;
-            background: #fafafa;
-            border-radius: 4px;
-            min-width: 120px;
             position: relative;
         }
         
+        .section-header::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: #3b82f6;
+        }
+        
+        .section-name {
+            color: #1e40af;
+            font-weight: 600;
+        }
+        
+        .section-content {
+            padding: 16px 20px;
+            min-height: 60px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: flex-start;
+            background: 
+                radial-gradient(circle at 20px 20px, #f1f5f9 1px, transparent 1px),
+                radial-gradient(circle at 20px 20px, #f1f5f9 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+        }
+        
+        .text-object, .field-object, .picture-object {
+            border: 2px solid #e2e8f0;
+            padding: 12px 16px;
+            background: white;
+            border-radius: 8px;
+            min-width: 140px;
+            position: relative;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .text-object:hover, .field-object:hover, .picture-object:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+            border-color: #3b82f6;
+        }
+        
         .field-object {
-            background: #f0f8ff;
-            border-color: #1976d2;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border-color: #3b82f6;
+        }
+        
+        .field-object::before {
+            content: '🔢';
+            position: absolute;
+            top: -8px;
+            left: -8px;
+            background: #3b82f6;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
         }
         
         .text-object {
-            background: #f9f9f9;
-            border-color: #666;
+            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+            border-color: #6b7280;
+        }
+        
+        .text-object::before {
+            content: 'T';
+            position: absolute;
+            top: -8px;
+            left: -8px;
+            background: #6b7280;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
         }
         
         .picture-object {
-            background: #fff9e6;
-            border-color: #ff9800;
+            background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%);
+            border-color: #f59e0b;
+        }
+        
+        .picture-object::before {
+            content: '🖼️';
+            position: absolute;
+            top: -8px;
+            left: -8px;
+            background: #f59e0b;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
         }
         
         .object-label {
-            font-weight: bold;
-            font-size: 12px;
-            color: #333;
+            font-weight: 600;
+            font-size: 13px;
+            color: #1e293b;
             display: block;
+            margin-bottom: 4px;
         }
         
         .object-content {
             font-size: 14px;
-            color: #555;
+            color: #475569;
             margin-top: 4px;
             display: block;
+            line-height: 1.4;
         }
         
         .field-source {
-            font-size: 10px;
-            color: #666;
+            font-size: 11px;
+            color: #64748b;
             font-style: italic;
+            margin-top: 6px;
         }
         
         .field-details {
             font-size: 11px;
-            color: #777;
-            margin-top: 4px;
-            font-family: monospace;
-            background: rgba(0,0,0,0.05);
-            padding: 2px 4px;
-            border-radius: 2px;
+            color: #475569;
+            margin-top: 6px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background: rgba(59, 130, 246, 0.1);
+            padding: 4px 6px;
+            border-radius: 4px;
+            border-left: 3px solid #3b82f6;
         }
         
         .picture-placeholder {
             font-size: 12px;
-            color: #ff9800;
+            color: #f59e0b;
             margin-top: 4px;
+            font-weight: 500;
         }
         
         .hidden-indicator, .changed-indicator {
             position: absolute;
-            top: -8px;
-            right: -8px;
-            background: #f44336;
+            top: -10px;
+            right: -10px;
+            background: #ef4444;
             color: white;
             font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 10px;
-            font-weight: bold;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
         
         .changed-indicator {
-            background: #ff9800;
-            right: 25px;
+            background: #f59e0b;
+            right: 20px;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
         }
         
         .object-hidden {
-            opacity: 0.4;
+            opacity: 0.5;
             border-style: dashed;
+            filter: grayscale(50%);
         }
         
         .section-hidden {
-            opacity: 0.5;
+            opacity: 0.6;
             background: repeating-linear-gradient(
                 45deg,
                 transparent,
-                transparent 10px,
-                rgba(255,0,0,.1) 10px,
-                rgba(255,0,0,.1) 20px
+                transparent 15px,
+                rgba(239, 68, 68, 0.1) 15px,
+                rgba(239, 68, 68, 0.1) 30px
             );
         }
         
         .object-changed {
-            border-color: #ff9800 !important;
-            background: #fff3e0 !important;
-            box-shadow: 0 0 8px rgba(255, 152, 0, 0.3);
+            border-color: #f59e0b !important;
+            background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%) !important;
+            box-shadow: 0 8px 25px rgba(245, 158, 11, 0.2) !important;
+            animation: highlight 1s ease-in-out;
+        }
+        
+        @keyframes highlight {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
         }
         
         .section-changed {
-            border-left: 4px solid #ff9800;
+            border-left: 6px solid #f59e0b;
+            background: linear-gradient(90deg, rgba(245, 158, 11, 0.1) 0%, transparent 100%);
         }
         
         .section-reportheader {
-            background: linear-gradient(to bottom, #e3f2fd, #f5f5f5);
+            background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
         }
         
         .section-details {
@@ -404,7 +639,199 @@ class ReportRenderer:
         }
         
         .section-reportfooter {
-            background: linear-gradient(to top, #e8f5e8, #f5f5f5);
+            background: linear-gradient(135deg, #f0fdf4 0%, #f7fee7 100%);
+        }
+        
+        /* Enhanced tooltips */
+        .text-object:hover::after,
+        .field-object:hover::after,
+        .picture-object:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        /* Loading states */
+        .loading-skeleton {
+            background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+        
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        /* Phase 2: Enhanced Field Object Styles */
+        .field-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+        
+        .field-badges {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: flex-end;
+        }
+        
+        .data-type-badge {
+            font-size: 10px;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .source-type-badge {
+            font-size: 9px;
+            padding: 2px 5px;
+            border-radius: 8px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+        
+        .formula-badge {
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #f59e0b;
+        }
+        
+        .database-badge {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #3b82f6;
+        }
+        
+        .field-content {
+            margin-top: 8px;
+        }
+        
+        .field-source-empty {
+            font-size: 11px;
+            color: #9ca3af;
+            font-style: italic;
+            padding: 4px 0;
+        }
+        
+        /* Formula Preview Styles */
+        .formula-preview {
+            background: #fefce8;
+            border: 1px solid #fde047;
+            border-radius: 6px;
+            padding: 8px;
+            margin-top: 4px;
+        }
+        
+        .formula-label {
+            font-size: 10px;
+            color: #a16207;
+            font-weight: 600;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .formula-code {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 11px;
+            line-height: 1.4;
+            color: #1f2937;
+            background: white;
+            padding: 6px 8px;
+            border-radius: 4px;
+            border: 1px solid #fbbf24;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        
+        /* Formula Syntax Highlighting */
+        .formula-function {
+            color: #7c3aed;
+            font-weight: 600;
+        }
+        
+        .formula-string {
+            color: #059669;
+        }
+        
+        .formula-number {
+            color: #dc2626;
+            font-weight: 500;
+        }
+        
+        .formula-operator {
+            color: #ea580c;
+            font-weight: 600;
+        }
+        
+        /* Database Field Preview Styles */
+        .database-field-preview {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            padding: 8px;
+            margin-top: 4px;
+        }
+        
+        .database-label {
+            font-size: 10px;
+            color: #1e40af;
+            font-weight: 600;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .database-path {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 11px;
+            color: #1f2937;
+            background: white;
+            padding: 6px 8px;
+            border-radius: 4px;
+            border: 1px solid #60a5fa;
+            overflow-x: auto;
+        }
+        
+        /* Data Type Specific Field Styling */
+        .field-type-text {
+            border-left: 4px solid #6b7280;
+        }
+        
+        .field-type-number {
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .field-type-date {
+            border-left: 4px solid #10b981;
+        }
+        
+        .field-type-boolean {
+            border-left: 4px solid #8b5cf6;
+        }
+        
+        .field-type-currency {
+            border-left: 4px solid #f59e0b;
         }
         """
 

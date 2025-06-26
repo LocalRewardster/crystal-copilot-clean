@@ -498,6 +498,135 @@ async def get_visual_preview(report_id: str, request: dict):
         )
 
 
+@app.get("/mock-report-demo")
+async def mock_report_demo():
+    """
+    Mock endpoint for testing Phase 2 visual enhancements on Mac
+    Returns sample report metadata to demonstrate enhanced field objects
+    """
+    
+    # Create mock report metadata with various field types
+    mock_metadata = {
+        "report_info": {
+            "name": "Phase 2 Demo Report",
+            "version": "2020",
+            "author": "Crystal Copilot",
+            "creation_date": "2024-06-26"
+        },
+        "sections": [
+            {
+                "name": "Report Header",
+                "hidden": False,
+                "text_objects": [
+                    {
+                        "name": "Title",
+                        "text": "Sales Performance Report",
+                        "hidden": False,
+                        "formatting": {"bold": True, "font_size": "18px"}
+                    }
+                ],
+                "field_objects": [
+                    {
+                        "name": "Customer Name",
+                        "database_field": "Customers.CustomerName",
+                        "formula": "",
+                        "hidden": False,
+                        "formatting": {}
+                    },
+                    {
+                        "name": "Total Amount",
+                        "database_field": "",
+                        "formula": "SUM({Orders.Amount})",
+                        "hidden": False,
+                        "formatting": {"bold": True}
+                    },
+                    {
+                        "name": "Order Date",
+                        "database_field": "Orders.OrderDate",
+                        "formula": "",
+                        "hidden": False,
+                        "formatting": {}
+                    },
+                    {
+                        "name": "Is Active",
+                        "database_field": "",
+                        "formula": "IF {Customer.Status} = \"Active\" THEN True ELSE False",
+                        "hidden": False,
+                        "formatting": {}
+                    },
+                    {
+                        "name": "Revenue Calculation",
+                        "database_field": "",
+                        "formula": "SUM({LineItems.Quantity} * {LineItems.UnitPrice}) + {Orders.Tax}",
+                        "hidden": False,
+                        "formatting": {}
+                    }
+                ],
+                "picture_objects": [
+                    {
+                        "name": "Company Logo",
+                        "image_path": "logo.png",
+                        "hidden": False
+                    }
+                ]
+            },
+            {
+                "name": "Details",
+                "hidden": False,
+                "text_objects": [],
+                "field_objects": [
+                    {
+                        "name": "Product ID",
+                        "database_field": "Products.ProductID",
+                        "formula": "",
+                        "hidden": False,
+                        "formatting": {}
+                    },
+                    {
+                        "name": "Created Date",
+                        "database_field": "",
+                        "formula": "NOW()",
+                        "hidden": False,
+                        "formatting": {}
+                    },
+                    {
+                        "name": "Price Total",
+                        "database_field": "",
+                        "formula": "COUNT({Orders.OrderID}) * AVG({Products.Price})",
+                        "hidden": False,
+                        "formatting": {}
+                    }
+                ],
+                "picture_objects": []
+            }
+        ],
+        "data_sources": [
+            {
+                "name": "Sales Database",
+                "connection_string": "Data Source=localhost;Initial Catalog=SalesDB",
+                "tables": ["Customers", "Orders", "Products", "LineItems"]
+            }
+        ],
+        "formulas": [
+            "SUM({Orders.Amount})",
+            "IF {Customer.Status} = \"Active\" THEN True ELSE False",
+            "SUM({LineItems.Quantity} * {LineItems.UnitPrice}) + {Orders.Tax}",
+            "NOW()",
+            "COUNT({Orders.OrderID}) * AVG({Products.Price})"
+        ]
+    }
+    
+    # Generate the enhanced HTML preview
+    preview_html = report_renderer.render_report_html(mock_metadata)
+    
+    return {
+        "success": True,
+        "message": "Mock report generated for Phase 2 testing",
+        "metadata": mock_metadata,
+        "preview_html": preview_html
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -662,26 +662,59 @@ def display_edit_interface(report_id: str):
     
     with col2:
         # Visual Preview Area
-        st.subheader("Visual Preview")
+        st.markdown("""
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <h3 style="margin: 0; color: #1e293b; font-size: 1.125rem; font-weight: 600;">Visual Preview</h3>
+        </div>
+        """, unsafe_allow_html=True)
         
         # Show current report or preview
         if 'show_visual_preview' not in st.session_state:
             st.session_state.show_visual_preview = True
         
-        # Always show current report initially
+        # Enhanced preview with loading state
         if st.session_state.show_visual_preview:
-            with st.spinner("Loading report preview..."):
+            with st.spinner("🔄 Loading report preview..."):
                 visual_result = get_visual_preview(report_id)
                 if visual_result.get("success"):
-                    # Display the HTML preview
+                    # Display the HTML preview with enhanced styling
                     preview_html = visual_result.get("preview_html", "")
                     if preview_html:
-                        st.markdown("**Current Report Layout:**")
-                        st.components.v1.html(preview_html, height=600, scrolling=True)
+                        st.markdown("""
+                        <div style="background: white; border: 2px solid #e2e8f0; border-radius: 8px; padding: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid #f1f5f9;">
+                                <div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></div>
+                                <span style="font-size: 0.875rem; font-weight: 500; color: #1e293b;">Current Report Layout</span>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Enhanced iframe container
+                        st.components.v1.html(
+                            f"""
+                            <div id="report-preview-container" style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #fafbfc;">
+                                {preview_html}
+                            </div>
+                            """, 
+                            height=650, 
+                            scrolling=True
+                        )
                     else:
-                        st.info("No visual preview available")
+                        st.markdown("""
+                        <div style="text-align: center; padding: 3rem; background: #f8fafc; border: 2px dashed #d1d5db; border-radius: 8px;">
+                            <div style="font-size: 2rem; margin-bottom: 1rem;">📄</div>
+                            <h3 style="color: #6b7280; margin: 0;">No Visual Preview Available</h3>
+                            <p style="color: #9ca3af; margin: 0.5rem 0 0 0;">The report structure will appear here once processed.</p>
+                        </div>
+                        """, unsafe_allow_html=True)
                 else:
-                    st.error(f"Failed to load preview: {visual_result.get('message', 'Unknown error')}")
+                    st.markdown(f"""
+                    <div style="text-align: center; padding: 3rem; background: #fef2f2; border: 2px solid #fecaca; border-radius: 8px;">
+                        <div style="font-size: 2rem; margin-bottom: 1rem;">⚠️</div>
+                        <h3 style="color: #dc2626; margin: 0;">Preview Error</h3>
+                        <p style="color: #991b1b; margin: 0.5rem 0 0 0;">{visual_result.get('message', 'Unknown error occurred')}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
     
     # Process commands
     if preview_button and edit_command.strip():
@@ -784,7 +817,7 @@ def main():
         # Current report status (always visible)
         if st.session_state.current_report_id:
             metadata = st.session_state.current_metadata
-            report_name = metadata.get('report_name', 'Unknown Report') if metadata else 'Unknown Report'
+            report_name = metadata.get('report_info', {}).get('name', 'Unknown Report') if metadata else 'Unknown Report'
             
             st.markdown('<div class="nav-section-title">Current Report</div>', unsafe_allow_html=True)
             st.markdown(f"""
@@ -793,7 +826,7 @@ def main():
                 <p style="margin: 0 0 0.5rem 0; color: #3730a3; font-size: 0.75rem;">Report ID: {st.session_state.current_report_id[:8]}...</p>
                 <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
                     <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 500;">
-                        {len(metadata.get("database_tables", [])) if metadata else 0} Tables
+                        {len(metadata.get("data_sources", [])) if metadata else 0} Tables
                     </span>
                     <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 500;">
                         {len(metadata.get("formulas", [])) if metadata else 0} Formulas
@@ -804,9 +837,9 @@ def main():
         else:
             st.markdown('<div class="nav-section-title">No Report Loaded</div>', unsafe_allow_html=True)
             st.markdown("""
-            <div class="content-card" style="background: #fef3c7; border-color: #f59e0b;">
-                <h4 style="margin: 0 0 0.5rem 0; color: #92400e; font-size: 0.875rem; font-weight: 600;">Upload a Report</h4>
-                <p style="margin: 0; color: #78350f; font-size: 0.75rem;">Select "Upload Report" below to get started with Crystal Reports analysis.</p>
+            <div class="content-card" style="background: #eff6ff; border-color: #3b82f6;">
+                <h4 style="margin: 0 0 0.5rem 0; color: #1e40af; font-size: 0.875rem; font-weight: 600;">Upload a Report</h4>
+                <p style="margin: 0; color: #3730a3; font-size: 0.75rem;">Select "Upload Report" below to get started with Crystal Reports analysis.</p>
             </div>
             """, unsafe_allow_html=True)
         
@@ -849,14 +882,14 @@ def main():
         
         openai_status = check_openai_health()
         if openai_status.get("status") == "healthy":
-            st.markdown('<div class="status-indicator status-healthy">AI Services Online</div>', unsafe_allow_html=True)
+            st.markdown('<div class="status-indicator status-healthy">Online</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="status-indicator status-error">AI Services Offline</div>', unsafe_allow_html=True)
+            st.markdown('<div class="status-indicator status-error">Offline</div>', unsafe_allow_html=True)
     
     # Main content area with header
     if st.session_state.current_report_id:
         metadata = st.session_state.current_metadata
-        report_name = metadata.get('report_name', 'Unknown Report') if metadata else 'Unknown Report'
+        report_name = metadata.get('report_info', {}).get('name', 'Unknown Report') if metadata else 'Unknown Report'
         
         st.markdown(f"""
         <div class="app-header">
@@ -869,7 +902,7 @@ def main():
                     <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 0.75rem; display: inline-block;">
                         <div style="color: #1e40af; font-weight: 600; font-size: 0.875rem;">Report Loaded</div>
                         <div style="color: #3730a3; font-size: 0.75rem; margin-top: 0.25rem;">
-                            {len(metadata.get("database_tables", [])) if metadata else 0} Tables • 
+                            {len(metadata.get("data_sources", [])) if metadata else 0} Tables • 
                             {len(metadata.get("formulas", [])) if metadata else 0} Formulas • 
                             {len(metadata.get("sections", [])) if metadata else 0} Sections
                         </div>
@@ -887,9 +920,9 @@ def main():
                     <p class="app-subtitle">Enterprise Crystal Reports modernization platform</p>
                 </div>
                 <div style="text-align: right;">
-                    <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 0.75rem; display: inline-block;">
-                        <div style="color: #92400e; font-weight: 600; font-size: 0.875rem;">No Report Loaded</div>
-                        <div style="color: #78350f; font-size: 0.75rem; margin-top: 0.25rem;">Upload a .rpt file to get started</div>
+                    <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 0.75rem; display: inline-block;">
+                        <div style="color: #1e40af; font-weight: 600; font-size: 0.875rem;">No Report Loaded</div>
+                        <div style="color: #3730a3; font-size: 0.75rem; margin-top: 0.25rem;">Upload a .rpt file to get started</div>
                     </div>
                 </div>
             </div>
@@ -946,14 +979,14 @@ def display_upload_interface():
     # Show current report status if one is loaded
     if st.session_state.current_report_id:
         metadata = st.session_state.current_metadata
-        report_name = metadata.get('report_name', 'Unknown Report') if metadata else 'Unknown Report'
+        report_name = metadata.get('report_info', {}).get('name', 'Unknown Report') if metadata else 'Unknown Report'
         
         st.markdown(f"""
         <div class="content-card" style="background: #eff6ff; border-color: #3b82f6; margin-bottom: 2rem;">
             <h3 style="color: #1e40af; margin-bottom: 1rem;">Currently Working On: {report_name}</h3>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
                 <div style="text-align: center;">
-                    <div style="font-size: 1.5rem; font-weight: 700; color: #1e40af;">{len(metadata.get("database_tables", [])) if metadata else 0}</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #1e40af;">{len(metadata.get("data_sources", [])) if metadata else 0}</div>
                     <div style="font-size: 0.875rem; color: #3730a3;">Database Tables</div>
                 </div>
                 <div style="text-align: center;">

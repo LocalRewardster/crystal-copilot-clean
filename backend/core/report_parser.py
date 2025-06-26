@@ -95,6 +95,9 @@ class ReportParser:
                 
             with open(temp_xml_file, 'r', encoding='utf-8') as f:
                 xml_content = f.read()
+            
+            # Clean up malformed XML (fix duplicate content issue)
+            xml_content = self._clean_malformed_xml(xml_content)
                 
             print(f"Successfully converted {rpt_file_path} to XML ({len(xml_content)} characters)")
             return xml_content
@@ -103,6 +106,38 @@ class ReportParser:
             # Clean up temporary file
             if os.path.exists(temp_xml_file):
                 os.remove(temp_xml_file)
+
+    def _clean_malformed_xml(self, xml_content: str) -> str:
+        """Clean up malformed XML output from RptToXml.exe"""
+        
+        # Check if XML has duplicate content (common RptToXml.exe bug)
+        if xml_content.count('<CrystalReport>') > 1:
+            print("Detected duplicate XML content, cleaning up...")
+            
+            # Find the first complete CrystalReport block
+            start_tag = '<CrystalReport>'
+            end_tag = '</CrystalReport>'
+            
+            start_index = xml_content.find(start_tag)
+            if start_index == -1:
+                raise ValueError("Invalid XML: No CrystalReport start tag found")
+            
+            # Find the first closing tag after the start
+            end_index = xml_content.find(end_tag, start_index)
+            if end_index == -1:
+                raise ValueError("Invalid XML: No CrystalReport end tag found")
+            
+            # Extract the first complete block
+            clean_xml = xml_content[start_index:end_index + len(end_tag)]
+            
+            # Validate it's properly formed
+            if clean_xml.count('<CrystalReport>') == 1 and clean_xml.count('</CrystalReport>') == 1:
+                print(f"Cleaned XML: Reduced from {len(xml_content)} to {len(clean_xml)} characters")
+                return clean_xml
+            else:
+                print("Warning: Could not clean malformed XML, attempting to parse as-is")
+        
+        return xml_content
 
     async def _convert_with_mock_data(self, rpt_file_path: str) -> str:
         """Fallback: Generate mock XML data for development"""
@@ -488,11 +523,14 @@ class ReportParser:
                 'file_path': report_info.get('FilePath', ''),
                 'file_size': report_info.get('FileSize', 0),
                 'last_modified': report_info.get('LastModified', ''),
-                'processed_by': report_info.get('ProcessedBy', 'Crystal Copilot')
+                'processed_by': report_info.get('ProcessedBy', 'Crystal Copilot'),
+                'record_selection_formula': report_info.get('RecordSelectionFormula', '')
             },
             'sections': [],
             'data_sources': [],
-            'field_lineage': {}
+            'field_lineage': {},
+            'parameters': [],
+            'formulas': []
         }
 
         # Process sections
@@ -509,83 +547,148 @@ class ReportParser:
         for section in section_list:
             if isinstance(section, dict):
                 section_data = {
-                    'name': section.get('@Name', section.get('Name', 'Unknown')),
+                    'name': section.get('@name', section.get('name', section.get('@Name', section.get('Name', 'Unknown')))),
+                    'kind': section.get('@kind', section.get('kind', 'Unknown')),
+                    'height': section.get('@height', section.get('height', 0)),
                     'text_objects': [],
                     'field_objects': [],
-                    'picture_objects': []
+                    'picture_objects': [],
+                    'box_objects': [],
+                    'line_objects': [],
+                    'subreport_objects': []
                 }
 
-                # Process text objects
-                text_objects = section.get('TextObjects', {})
-                if isinstance(text_objects, dict) and 'TextObject' in text_objects:
-                    text_obj = text_objects['TextObject']
-                    if isinstance(text_obj, dict):
-                        text_obj = [text_obj]
-
-                    for obj in text_obj:
-                        section_data['text_objects'].append({
-                            'name': obj.get('@Name', obj.get('Name', 'Unknown')),
-                            'text': obj.get('Text', ''),
-                            'font': obj.get('Font', '')
-                        })
-
-                # Process field objects
-                field_objects = section.get('FieldObjects', {})
-                if isinstance(field_objects, dict) and 'FieldObject' in field_objects:
-                    field_obj = field_objects['FieldObject']
-                    if isinstance(field_obj, dict):
-                        field_obj = [field_obj]
-
-                    for obj in field_obj:
-                        field_name = obj.get('@Name', obj.get('Name', 'Unknown'))
-                        db_field = obj.get('DatabaseField', '')
-                        formula = obj.get('Formula', '')
-
-                        section_data['field_objects'].append({
-                            'name': field_name,
-                            'database_field': db_field,
-                            'formula': formula
-                        })
-
-                        # Add to lineage tracking
-                        metadata['field_lineage'][field_name] = {
-                            'source': db_field if db_field else 'Formula',
-                            'formula': formula,
-                            'section': section_data['name']
-                        }
-
-                # Process picture objects
-                picture_objects = section.get('PictureObjects', {})
-                if isinstance(picture_objects, dict) and 'PictureObject' in picture_objects:
-                    pic_obj = picture_objects['PictureObject']
-                    if isinstance(pic_obj, dict):
-                        pic_obj = [pic_obj]
-
-                    for obj in pic_obj:
-                        section_data['picture_objects'].append({
-                            'name': obj.get('@Name', obj.get('Name', 'Unknown')),
-                            'image_path': obj.get('ImagePath', '')
-                        })
+                # Process objects within the section
+                objects = section.get('Objects', {})
+                if isinstance(objects, dict) and 'Object' in objects:
+                    object_list = objects['Object']
+                    if isinstance(object_list, dict):
+                        object_list = [object_list]
+                    
+                    for obj in object_list:
+                        obj_kind = obj.get('@kind', obj.get('kind', 'Unknown'))
+                        obj_name = obj.get('@name', obj.get('name', 'Unknown'))
+                        
+                        if obj_kind == 'TextObject':
+                            section_data['text_objects'].append({
+                                'name': obj_name,
+                                'text': obj.get('@text', obj.get('text', '')),
+                                'left': obj.get('@left', 0),
+                                'top': obj.get('@top', 0),
+                                'width': obj.get('@width', 0),
+                                'height': obj.get('@height', 0)
+                            })
+                        elif obj_kind == 'FieldObject':
+                            data_source = obj.get('@dataSource', obj.get('dataSource', ''))
+                            section_data['field_objects'].append({
+                                'name': obj_name,
+                                'data_source': data_source,
+                                'left': obj.get('@left', 0),
+                                'top': obj.get('@top', 0),
+                                'width': obj.get('@width', 0),
+                                'height': obj.get('@height', 0)
+                            })
+                            
+                            # Add to field lineage
+                            metadata['field_lineage'][obj_name] = {
+                                'source': data_source,
+                                'section': section_data['name'],
+                                'type': 'Database' if 'DatabaseFieldDefinition' in data_source else 'Formula'
+                            }
+                        elif obj_kind == 'PictureObject':
+                            section_data['picture_objects'].append({
+                                'name': obj_name,
+                                'left': obj.get('@left', 0),
+                                'top': obj.get('@top', 0),
+                                'width': obj.get('@width', 0),
+                                'height': obj.get('@height', 0)
+                            })
+                        elif obj_kind == 'BoxObject':
+                            section_data['box_objects'].append({
+                                'name': obj_name,
+                                'left': obj.get('@left', 0),
+                                'top': obj.get('@top', 0),
+                                'width': obj.get('@width', 0),
+                                'height': obj.get('@height', 0)
+                            })
+                        elif obj_kind == 'LineObject':
+                            section_data['line_objects'].append({
+                                'name': obj_name,
+                                'left': obj.get('@left', 0),
+                                'top': obj.get('@top', 0),
+                                'width': obj.get('@width', 0),
+                                'height': obj.get('@height', 0)
+                            })
+                        elif obj_kind == 'SubreportObject':
+                            section_data['subreport_objects'].append({
+                                'name': obj_name,
+                                'left': obj.get('@left', 0),
+                                'top': obj.get('@top', 0),
+                                'width': obj.get('@width', 0),
+                                'height': obj.get('@height', 0)
+                            })
 
                 metadata['sections'].append(section_data)
 
-        # Process data sources
-        data_sources = report_data.get('DataSources', {})
-        if isinstance(data_sources, dict) and 'DataSource' in data_sources:
-            ds = data_sources['DataSource']
-            if isinstance(ds, dict):
-                ds = [ds]
+        # Process database tables (real Crystal Reports structure)
+        database = report_data.get('Database', {})
+        if isinstance(database, dict) and 'Tables' in database:
+            tables = database['Tables']
+            if isinstance(tables, dict) and 'Table' in tables:
+                table_list = tables['Table']
+                if isinstance(table_list, dict):
+                    table_list = [table_list]
+                
+                # Group tables into a single data source
+                table_names = []
+                for table in table_list:
+                    table_name = table.get('@name', table.get('name', 'Unknown'))
+                    table_names.append(table_name)
+                
+                if table_names:
+                    metadata['data_sources'].append({
+                        'name': 'Crystal Reports Database',
+                        'connection_string': 'Crystal Reports Native Connection',
+                        'tables': table_names
+                    })
 
-            for source in ds:
-                tables = source.get('Tables', {}).get('Table', [])
-                if isinstance(tables, dict):
-                    tables = [tables]
-
-                metadata['data_sources'].append({
-                    'name': source.get('@Name', source.get('Name', 'Unknown')),
-                    'connection_string': source.get('ConnectionString', ''),
-                    'tables': [t.get('@Name', t.get('Name', 'Unknown')) for t in tables if isinstance(t, dict)]
+        # Process parameters
+        parameters = report_data.get('Parameters', {})
+        if isinstance(parameters, dict) and 'Parameter' in parameters:
+            param_list = parameters['Parameter']
+            if isinstance(param_list, dict):
+                param_list = [param_list]
+            
+            for param in param_list:
+                metadata['parameters'].append({
+                    'name': param.get('@name', param.get('name', 'Unknown')),
+                    'parameter_field_name': param.get('@parameterFieldName', param.get('parameterFieldName', '')),
+                    'value_type': param.get('@valueType', param.get('valueType', 'Unknown')),
+                    'has_current_value': param.get('@hasCurrentValue', param.get('hasCurrentValue', False))
                 })
+
+        # Process formulas
+        formulas = report_data.get('Formulas', {})
+        if isinstance(formulas, dict) and 'Formula' in formulas:
+            formula_list = formulas['Formula']
+            if isinstance(formula_list, dict):
+                formula_list = [formula_list]
+            
+            for formula in formula_list:
+                formula_name = formula.get('@name', formula.get('name', 'Unknown'))
+                metadata['formulas'].append({
+                    'name': formula_name,
+                    'formula_name': formula.get('@formulaName', formula.get('formulaName', '')),
+                    'text': formula.get('@text', formula.get('text', ''))
+                })
+                
+                # Add formulas to field lineage
+                metadata['field_lineage'][formula_name] = {
+                    'source': 'Formula',
+                    'formula': formula.get('@text', formula.get('text', '')),
+                    'section': 'Formula Definition',
+                    'type': 'Formula'
+                }
 
         return metadata
 

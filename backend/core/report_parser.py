@@ -472,15 +472,23 @@ class ReportParser:
     def _normalize_xml_to_json(self, xml_dict: Dict) -> Dict:
         """Normalize XML dictionary to clean JSON metadata"""
 
-        report_data = xml_dict.get('Report', {})
+        # Handle both real RptToXml.exe output and mock data
+        # Real tool outputs: <CrystalReport> with <ReportInfo>
+        # Mock data outputs: <Report> with <ReportInfo>
+        report_data = xml_dict.get('CrystalReport', xml_dict.get('Report', {}))
 
-        # Extract key metadata
+        # Extract key metadata - handle both formats
+        report_info = report_data.get('ReportInfo', {})
         metadata = {
             'report_info': {
-                'name': report_data.get('ReportInfo', {}).get('Name', 'Unknown'),
-                'version': report_data.get('ReportInfo', {}).get('Version', 'Unknown'),
-                'creation_date': report_data.get('ReportInfo', {}).get('CreationDate', 'Unknown'),
-                'author': report_data.get('ReportInfo', {}).get('Author', 'Unknown')
+                'name': report_info.get('Name', 'Unknown'),
+                'version': report_info.get('ReportVersion', report_info.get('Version', 'Unknown')),
+                'creation_date': report_info.get('CreationDate', 'Unknown'),
+                'author': report_info.get('Author', 'Unknown'),
+                'file_path': report_info.get('FilePath', ''),
+                'file_size': report_info.get('FileSize', 0),
+                'last_modified': report_info.get('LastModified', ''),
+                'processed_by': report_info.get('ProcessedBy', 'Crystal Copilot')
             },
             'sections': [],
             'data_sources': [],
@@ -501,7 +509,7 @@ class ReportParser:
         for section in section_list:
             if isinstance(section, dict):
                 section_data = {
-                    'name': section.get('@Name', 'Unknown'),
+                    'name': section.get('@Name', section.get('Name', 'Unknown')),
                     'text_objects': [],
                     'field_objects': [],
                     'picture_objects': []
@@ -516,7 +524,7 @@ class ReportParser:
 
                     for obj in text_obj:
                         section_data['text_objects'].append({
-                            'name': obj.get('@Name', 'Unknown'),
+                            'name': obj.get('@Name', obj.get('Name', 'Unknown')),
                             'text': obj.get('Text', ''),
                             'font': obj.get('Font', '')
                         })
@@ -529,7 +537,7 @@ class ReportParser:
                         field_obj = [field_obj]
 
                     for obj in field_obj:
-                        field_name = obj.get('@Name', 'Unknown')
+                        field_name = obj.get('@Name', obj.get('Name', 'Unknown'))
                         db_field = obj.get('DatabaseField', '')
                         formula = obj.get('Formula', '')
 
@@ -555,7 +563,7 @@ class ReportParser:
 
                     for obj in pic_obj:
                         section_data['picture_objects'].append({
-                            'name': obj.get('@Name', 'Unknown'),
+                            'name': obj.get('@Name', obj.get('Name', 'Unknown')),
                             'image_path': obj.get('ImagePath', '')
                         })
 
@@ -574,9 +582,9 @@ class ReportParser:
                     tables = [tables]
 
                 metadata['data_sources'].append({
-                    'name': source.get('@Name', 'Unknown'),
+                    'name': source.get('@Name', source.get('Name', 'Unknown')),
                     'connection_string': source.get('ConnectionString', ''),
-                    'tables': [t.get('@Name', 'Unknown') for t in tables if isinstance(t, dict)]
+                    'tables': [t.get('@Name', t.get('Name', 'Unknown')) for t in tables if isinstance(t, dict)]
                 })
 
         return metadata

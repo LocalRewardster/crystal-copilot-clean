@@ -1011,6 +1011,15 @@ class ReportRenderer:
             let left = event.clientX;
             let top = event.clientY;
             
+            // Debug: Log positioning info
+            console.log('Original position:', left, top);
+            console.log('Menu dimensions:', menuRect.width, menuRect.height);
+            console.log('Window dimensions:', window.innerWidth, window.innerHeight);
+            
+            // Add some offset so menu doesn't appear directly under cursor
+            left += 2;
+            top += 2;
+            
             // Adjust position if menu would go off screen
             if (left + menuRect.width > window.innerWidth) {
                 left = window.innerWidth - menuRect.width - 10;
@@ -1161,6 +1170,9 @@ class ReportRenderer:
             if (reportObject) {
                 e.preventDefault();
                 e.stopPropagation();
+                
+                // Debug: Log mouse coordinates
+                console.log('Right-click at:', e.clientX, e.clientY, 'on object:', reportObject.id);
                 
                 // Determine object type and show appropriate context menu
                 if (reportObject.classList.contains('field-object')) {
@@ -1313,27 +1325,47 @@ class ReportRenderer:
             overlay.className = 'context-overlay';
             overlay.onclick = hideContextMenu;
             
-            // Position context menu
+            // Add to DOM first (hidden) to get dimensions
+            contextMenu.style.visibility = 'hidden';
+            contextMenu.style.display = 'block';
             document.body.appendChild(overlay);
             document.body.appendChild(contextMenu);
             
-            const rect = objectElement.getBoundingClientRect();
+            // Get menu dimensions after adding to DOM
             const menuRect = contextMenu.getBoundingClientRect();
             
+            // Calculate position based on mouse coordinates
             let left = event.clientX;
             let top = event.clientY;
             
+            // Debug: Log positioning info
+            console.log('Original position:', left, top);
+            console.log('Menu dimensions:', menuRect.width, menuRect.height);
+            console.log('Window dimensions:', window.innerWidth, window.innerHeight);
+            
+            // Add some offset so menu doesn't appear directly under cursor
+            left += 2;
+            top += 2;
+            
             // Adjust position if menu would go off screen
             if (left + menuRect.width > window.innerWidth) {
-                left = window.innerWidth - menuRect.width - 10;
+                left = event.clientX - menuRect.width - 2;
             }
             if (top + menuRect.height > window.innerHeight) {
-                top = window.innerHeight - menuRect.height - 10;
+                top = event.clientY - menuRect.height - 2;
             }
             
+            // Ensure menu doesn't go off the left or top edge
+            if (left < 0) left = 5;
+            if (top < 0) top = 5;
+            
+            // Debug: Log final position
+            console.log('Final position:', left, top);
+            
+            // Position and show the menu
             contextMenu.style.left = left + 'px';
             contextMenu.style.top = top + 'px';
-            contextMenu.style.display = 'block';
+            contextMenu.style.visibility = 'visible';
             overlay.style.display = 'block';
             
             // Highlight the object

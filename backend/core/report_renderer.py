@@ -161,8 +161,7 @@ class ReportRenderer:
              id="{text_id}"
              data-object-name="{name}"
              data-object-type="text"
-             data-tooltip="Text Object: {name}"
-             oncontextmenu="showTextContextMenu(event, '{text_id}'); return false;">
+             data-tooltip="Text Object: {name}">
             <span class="object-label">{name}:</span>
             <span class="object-content">{text}</span>
             {('<span class="hidden-indicator">HIDDEN</span>' if is_hidden else '')}
@@ -219,8 +218,7 @@ class ReportRenderer:
              data-field-name="{name}"
              data-field-type="{data_type}"
              data-source-type="{source_type}"
-             data-tooltip="Field: {name} | Type: {data_type} | Source: {source_type}"
-             oncontextmenu="showContextMenu(event, '{field_id}'); return false;">
+             data-tooltip="Field: {name} | Type: {data_type} | Source: {source_type}">
             <div class="field-header">
                 <span class="object-label">{name}</span>
                 <div class="field-badges">
@@ -336,21 +334,40 @@ class ReportRenderer:
         return highlighted
 
     def _render_picture_object(self, pic_obj: Dict, highlight_changes: Optional[Dict] = None) -> str:
-        """Render a picture object"""
+        """Render a picture object with context menu support"""
         
         name = pic_obj.get('name', 'Image')
         image_path = pic_obj.get('image_path', '')
         is_hidden = pic_obj.get('hidden', False)
         
+        # Check for changes
+        is_changed = False
+        if highlight_changes:
+            changes = highlight_changes.get('changes', [])
+            for change in changes:
+                if name.lower() in change.lower():
+                    is_changed = True
+                    break
+        
         css_class = "picture-object"
         if is_hidden:
             css_class += " object-hidden"
+        if is_changed:
+            css_class += " object-changed"
+        
+        # Generate unique ID for context menu
+        picture_id = f"picture-{name.replace(' ', '-').replace('(', '').replace(')', '').lower()}"
         
         return f'''
-        <div class="{css_class}">
+        <div class="{css_class}"
+             id="{picture_id}"
+             data-object-name="{name}"
+             data-object-type="picture"
+             data-tooltip="Picture Object: {name}">
             <span class="object-label">{name}:</span>
             <div class="picture-placeholder">📷 {image_path or 'Image'}</div>
             {('<span class="hidden-indicator">HIDDEN</span>' if is_hidden else '')}
+            {('<span class="changed-indicator">CHANGED</span>' if is_changed else '')}
         </div>
         '''
 
@@ -904,6 +921,13 @@ class ReportRenderer:
             transform: translateY(-1px);
         }
         
+        /* Picture object context highlight */
+        .picture-object.context-active {
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+            transform: translateY(-1px);
+        }
+        
         /* Overlay for context menu */
         .context-overlay {
             position: fixed;
@@ -1128,63 +1152,161 @@ class ReportRenderer:
         
         // Hide context menu when clicking elsewhere
         document.addEventListener('click', hideContextMenu);
+        
+        // Universal context menu system using event delegation
         document.addEventListener('contextmenu', function(e) {
-            // Only prevent default for field and text objects
-            if (!e.target.closest('.field-object') && !e.target.closest('.text-object')) {
+            // Find the closest report object (field, text, or picture)
+            const reportObject = e.target.closest('.field-object, .text-object, .picture-object');
+            
+            if (reportObject) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Determine object type and show appropriate context menu
+                if (reportObject.classList.contains('field-object')) {
+                    showUniversalContextMenu(e, reportObject, 'field');
+                } else if (reportObject.classList.contains('text-object')) {
+                    showUniversalContextMenu(e, reportObject, 'text');
+                } else if (reportObject.classList.contains('picture-object')) {
+                    showUniversalContextMenu(e, reportObject, 'picture');
+                }
+            } else {
+                // Click outside objects - hide menu
                 hideContextMenu();
             }
         });
         
-        // Text object context menu
-        function showTextContextMenu(event, textId) {
-            event.preventDefault();
-            event.stopPropagation();
-            
+        // Universal context menu function that works for all object types
+        function showUniversalContextMenu(event, objectElement, objectType) {
             // Hide any existing context menu
             hideContextMenu();
             
-            const textObj = document.getElementById(textId);
-            if (!textObj) return;
+            if (!objectElement) return;
             
-            // Get text object data
-            const objectName = textObj.dataset.objectName;
+            // Get object data
+            const objectName = objectElement.dataset.fieldName || 
+                              objectElement.dataset.objectName || 
+                              objectElement.querySelector('.object-label')?.textContent?.replace(':', '') || 
+                              'Unknown Object';
             
-            // Create context menu
+            const objectId = objectElement.id || `${objectType}-${Date.now()}`;
+            
+            // Ensure object has an ID for operations
+            if (!objectElement.id) {
+                objectElement.id = objectId;
+            }
+            
+            // Create context menu with appropriate options based on object type
             const contextMenu = document.createElement('div');
             contextMenu.className = 'context-menu';
-            contextMenu.innerHTML = `
-                <div class="context-menu-item" onclick="copyObjectName('${objectName}')">
-                    <span class="context-menu-icon">📋</span>
-                    Copy Object Name
-                </div>
-                <div class="context-menu-item" onclick="inspectObject('${textId}')">
-                    <span class="context-menu-icon">🔍</span>
-                    Inspect Object
-                </div>
-                <div class="context-menu-separator"></div>
-                <div class="context-menu-item" onclick="hideObject('${textId}')">
-                    <span class="context-menu-icon">👁️</span>
-                    Hide Object
-                </div>
-                <div class="context-menu-item" onclick="duplicateObject('${textId}')">
-                    <span class="context-menu-icon">📄</span>
-                    Duplicate Object
-                </div>
-                <div class="context-menu-separator"></div>
-                <div class="context-menu-item" onclick="moveObjectUp('${textId}')">
-                    <span class="context-menu-icon">⬆️</span>
-                    Move Up
-                </div>
-                <div class="context-menu-item" onclick="moveObjectDown('${textId}')">
-                    <span class="context-menu-icon">⬇️</span>
-                    Move Down
-                </div>
-                <div class="context-menu-separator"></div>
-                <div class="context-menu-item dangerous" onclick="deleteObject('${textId}')">
-                    <span class="context-menu-icon">🗑️</span>
-                    Delete Object
-                </div>
-            `;
+            
+            let menuItems = '';
+            
+            if (objectType === 'field') {
+                menuItems = `
+                    <div class="context-menu-item" onclick="copyObjectName('${objectName}')">
+                        <span class="context-menu-icon">📋</span>
+                        Copy Field Name
+                    </div>
+                    <div class="context-menu-item" onclick="inspectObject('${objectId}')">
+                        <span class="context-menu-icon">🔍</span>
+                        Inspect Field
+                    </div>
+                    <div class="context-menu-separator"></div>
+                    <div class="context-menu-item" onclick="hideObject('${objectId}')">
+                        <span class="context-menu-icon">👁️</span>
+                        Hide Field
+                    </div>
+                    <div class="context-menu-item" onclick="duplicateObject('${objectId}')">
+                        <span class="context-menu-icon">📄</span>
+                        Duplicate Field
+                    </div>
+                    <div class="context-menu-separator"></div>
+                    <div class="context-menu-item" onclick="moveObjectUp('${objectId}')">
+                        <span class="context-menu-icon">⬆️</span>
+                        Move Up
+                    </div>
+                    <div class="context-menu-item" onclick="moveObjectDown('${objectId}')">
+                        <span class="context-menu-icon">⬇️</span>
+                        Move Down
+                    </div>
+                    <div class="context-menu-separator"></div>
+                    <div class="context-menu-item dangerous" onclick="deleteObject('${objectId}')">
+                        <span class="context-menu-icon">🗑️</span>
+                        Delete Field
+                    </div>
+                `;
+            } else if (objectType === 'text') {
+                menuItems = `
+                    <div class="context-menu-item" onclick="copyObjectName('${objectName}')">
+                        <span class="context-menu-icon">📋</span>
+                        Copy Text Object
+                    </div>
+                    <div class="context-menu-item" onclick="inspectObject('${objectId}')">
+                        <span class="context-menu-icon">🔍</span>
+                        Inspect Text
+                    </div>
+                    <div class="context-menu-separator"></div>
+                    <div class="context-menu-item" onclick="hideObject('${objectId}')">
+                        <span class="context-menu-icon">👁️</span>
+                        Hide Text
+                    </div>
+                    <div class="context-menu-item" onclick="duplicateObject('${objectId}')">
+                        <span class="context-menu-icon">📄</span>
+                        Duplicate Text
+                    </div>
+                    <div class="context-menu-separator"></div>
+                    <div class="context-menu-item" onclick="moveObjectUp('${objectId}')">
+                        <span class="context-menu-icon">⬆️</span>
+                        Move Up
+                    </div>
+                    <div class="context-menu-item" onclick="moveObjectDown('${objectId}')">
+                        <span class="context-menu-icon">⬇️</span>
+                        Move Down
+                    </div>
+                    <div class="context-menu-separator"></div>
+                    <div class="context-menu-item dangerous" onclick="deleteObject('${objectId}')">
+                        <span class="context-menu-icon">🗑️</span>
+                        Delete Text
+                    </div>
+                `;
+            } else if (objectType === 'picture') {
+                menuItems = `
+                    <div class="context-menu-item" onclick="copyObjectName('${objectName}')">
+                        <span class="context-menu-icon">📋</span>
+                        Copy Image Name
+                    </div>
+                    <div class="context-menu-item" onclick="inspectObject('${objectId}')">
+                        <span class="context-menu-icon">🔍</span>
+                        Inspect Image
+                    </div>
+                    <div class="context-menu-separator"></div>
+                    <div class="context-menu-item" onclick="hideObject('${objectId}')">
+                        <span class="context-menu-icon">👁️</span>
+                        Hide Image
+                    </div>
+                    <div class="context-menu-item" onclick="duplicateObject('${objectId}')">
+                        <span class="context-menu-icon">📄</span>
+                        Duplicate Image
+                    </div>
+                    <div class="context-menu-separator"></div>
+                    <div class="context-menu-item" onclick="moveObjectUp('${objectId}')">
+                        <span class="context-menu-icon">⬆️</span>
+                        Move Up
+                    </div>
+                    <div class="context-menu-item" onclick="moveObjectDown('${objectId}')">
+                        <span class="context-menu-icon">⬇️</span>
+                        Move Down
+                    </div>
+                    <div class="context-menu-separator"></div>
+                    <div class="context-menu-item dangerous" onclick="deleteObject('${objectId}')">
+                        <span class="context-menu-icon">🗑️</span>
+                        Delete Image
+                    </div>
+                `;
+            }
+            
+            contextMenu.innerHTML = menuItems;
             
             // Create overlay
             const overlay = document.createElement('div');
@@ -1195,7 +1317,7 @@ class ReportRenderer:
             document.body.appendChild(overlay);
             document.body.appendChild(contextMenu);
             
-            const rect = textObj.getBoundingClientRect();
+            const rect = objectElement.getBoundingClientRect();
             const menuRect = contextMenu.getBoundingClientRect();
             
             let left = event.clientX;
@@ -1215,75 +1337,10 @@ class ReportRenderer:
             overlay.style.display = 'block';
             
             // Highlight the object
-            textObj.classList.add('context-active');
+            objectElement.classList.add('context-active');
             
             currentContextMenu = contextMenu;
-            currentActiveField = textObj;
-        }
-        
-        // Text object context menu actions
-        function copyObjectName(objectName) {
-            navigator.clipboard.writeText(objectName).then(() => {
-                showNotification('Object name copied to clipboard', 'success');
-            });
-            hideContextMenu();
-        }
-        
-        function inspectObject(objectId) {
-            const obj = document.getElementById(objectId);
-            if (obj) {
-                showNotification(`Inspecting object: ${obj.dataset.objectName}`, 'info');
-            }
-            hideContextMenu();
-        }
-        
-        function hideObject(objectId) {
-            const obj = document.getElementById(objectId);
-            if (obj) {
-                obj.style.opacity = '0.3';
-                obj.style.filter = 'grayscale(100%)';
-                showNotification('Object hidden (visual only)', 'warning');
-            }
-            hideContextMenu();
-        }
-        
-        function duplicateObject(objectId) {
-            showNotification('Duplicate object functionality would be implemented here', 'info');
-            hideContextMenu();
-        }
-        
-        function moveObjectUp(objectId) {
-            const obj = document.getElementById(objectId);
-            if (obj && obj.previousElementSibling) {
-                obj.parentNode.insertBefore(obj, obj.previousElementSibling);
-                showNotification('Object moved up (visual only)', 'success');
-            }
-            hideContextMenu();
-        }
-        
-        function moveObjectDown(objectId) {
-            const obj = document.getElementById(objectId);
-            if (obj && obj.nextElementSibling) {
-                obj.parentNode.insertBefore(obj.nextElementSibling, obj);
-                showNotification('Object moved down (visual only)', 'success');
-            }
-            hideContextMenu();
-        }
-        
-        function deleteObject(objectId) {
-            if (confirm('Are you sure you want to delete this object?')) {
-                const obj = document.getElementById(objectId);
-                if (obj) {
-                    obj.style.transition = 'all 0.3s ease';
-                    obj.style.transform = 'scale(0)';
-                    obj.style.opacity = '0';
-                    setTimeout(() => {
-                        obj.remove();
-                        showNotification('Object deleted (visual only)', 'warning');
-                    }, 300);
-                }
-            }
-            hideContextMenu();
+            currentActiveField = objectElement;
         }
         </script>
         """

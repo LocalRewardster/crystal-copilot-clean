@@ -616,15 +616,363 @@ async def mock_report_demo():
         ]
     }
     
+    # Store the mock report in QA service for context menu testing
+    mock_report_id = "mock-demo-report"
+    qa_service.store_report_metadata(mock_report_id, mock_metadata)
+    
     # Generate the enhanced HTML preview
     preview_html = report_renderer.render_report_html(mock_metadata)
     
     return {
         "success": True,
         "message": "Mock report generated for Phase 2 testing",
+        "report_id": mock_report_id,
         "metadata": mock_metadata,
         "preview_html": preview_html
     }
+
+
+# Context Menu API Endpoints
+class ObjectActionRequest(BaseModel):
+    """Request model for object actions"""
+    object_name: str
+    object_type: str  # 'field', 'text', 'picture'
+    section_name: Optional[str] = None
+    action_data: Optional[dict] = {}
+
+
+class ObjectActionResponse(BaseModel):
+    """Response model for object actions"""
+    success: bool
+    message: str
+    object_info: Optional[dict] = None
+    action_result: Optional[dict] = None
+
+
+@app.post("/reports/{report_id}/object/inspect", response_model=ObjectActionResponse)
+async def inspect_object(report_id: str, request: ObjectActionRequest):
+    """
+    Inspect a report object and return detailed information
+    Context menu action: "Inspect Object"
+    """
+    
+    # Get report metadata
+    metadata = qa_service.get_report_metadata(report_id)
+    if not metadata:
+        raise HTTPException(
+            status_code=404,
+            detail="Report not found"
+        )
+    
+    try:
+        # Find the object in the metadata
+        object_info = None
+        found_section = None
+        
+        for section in metadata.get('sections', []):
+            # Check field objects
+            for field_obj in section.get('field_objects', []):
+                if field_obj.get('name') == request.object_name:
+                    object_info = field_obj.copy()
+                    object_info['object_type'] = 'field'
+                    found_section = section.get('name')
+                    break
+            
+            # Check text objects
+            for text_obj in section.get('text_objects', []):
+                if text_obj.get('name') == request.object_name:
+                    object_info = text_obj.copy()
+                    object_info['object_type'] = 'text'
+                    found_section = section.get('name')
+                    break
+            
+            # Check picture objects
+            for pic_obj in section.get('picture_objects', []):
+                if pic_obj.get('name') == request.object_name:
+                    object_info = pic_obj.copy()
+                    object_info['object_type'] = 'picture'
+                    found_section = section.get('name')
+                    break
+            
+            if object_info:
+                break
+        
+        if not object_info:
+            return ObjectActionResponse(
+                success=False,
+                message=f"Object '{request.object_name}' not found in report"
+            )
+        
+        # Add section information
+        object_info['section'] = found_section
+        
+        # Add data type detection for field objects
+        if object_info['object_type'] == 'field':
+            data_type = _detect_field_data_type(object_info)
+            object_info['detected_data_type'] = data_type
+        
+        return ObjectActionResponse(
+            success=True,
+            message=f"Object '{request.object_name}' inspected successfully",
+            object_info=object_info,
+            action_result={
+                "action": "inspect",
+                "timestamp": "2024-06-26T21:00:00Z",
+                "details": f"Inspected {object_info['object_type']} object in {found_section} section"
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to inspect object: {str(e)}"
+        )
+
+
+@app.post("/reports/{report_id}/object/copy", response_model=ObjectActionResponse)
+async def copy_object_info(report_id: str, request: ObjectActionRequest):
+    """
+    Copy object information to clipboard (returns copyable data)
+    Context menu action: "Copy Object Name" / "Copy Object Info"
+    """
+    
+    # Get report metadata
+    metadata = qa_service.get_report_metadata(report_id)
+    if not metadata:
+        raise HTTPException(
+            status_code=404,
+            detail="Report not found"
+        )
+    
+    try:
+        # Find the object and create copyable text
+        copy_text = ""
+        object_found = False
+        
+        for section in metadata.get('sections', []):
+            # Check all object types
+            all_objects = (
+                [(obj, 'field') for obj in section.get('field_objects', [])] +
+                [(obj, 'text') for obj in section.get('text_objects', [])] +
+                [(obj, 'picture') for obj in section.get('picture_objects', [])]
+            )
+            
+            for obj, obj_type in all_objects:
+                if obj.get('name') == request.object_name:
+                    object_found = True
+                    
+                    if request.action_data.get('copy_type') == 'name_only':
+                        copy_text = obj.get('name', '')
+                    elif request.action_data.get('copy_type') == 'formula':
+                        copy_text = obj.get('formula', 'No formula')
+                    else:
+                        # Full object info
+                        copy_text = f"Object: {obj.get('name')}\n"
+                        copy_text += f"Type: {obj_type}\n"
+                        copy_text += f"Section: {section.get('name')}\n"
+                        
+                        if obj_type == 'field':
+                            if obj.get('database_field'):
+                                copy_text += f"Database Field: {obj.get('database_field')}\n"
+                            if obj.get('formula'):
+                                copy_text += f"Formula: {obj.get('formula')}\n"
+                        elif obj_type == 'text':
+                            copy_text += f"Text: {obj.get('text', '')}\n"
+                        elif obj_type == 'picture':
+                            copy_text += f"Image Path: {obj.get('image_path', '')}\n"
+                    
+                    break
+            
+            if object_found:
+                break
+        
+        if not object_found:
+            return ObjectActionResponse(
+                success=False,
+                message=f"Object '{request.object_name}' not found"
+            )
+        
+        return ObjectActionResponse(
+            success=True,
+            message=f"Object information copied to clipboard",
+            action_result={
+                "action": "copy",
+                "copy_text": copy_text,
+                "copy_type": request.action_data.get('copy_type', 'full'),
+                "timestamp": "2024-06-26T21:00:00Z"
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to copy object info: {str(e)}"
+        )
+
+
+@app.post("/reports/{report_id}/object/hide", response_model=ObjectActionResponse)
+async def hide_object(report_id: str, request: ObjectActionRequest):
+    """
+    Hide a report object (sets hidden=True)
+    Context menu action: "Hide Object"
+    """
+    
+    # Get report metadata
+    metadata = qa_service.get_report_metadata(report_id)
+    if not metadata:
+        raise HTTPException(
+            status_code=404,
+            detail="Report not found"
+        )
+    
+    try:
+        # Find and hide the object
+        object_found = False
+        modified_metadata = metadata.copy()
+        
+        for section in modified_metadata.get('sections', []):
+            # Check all object types
+            for obj_list_name in ['field_objects', 'text_objects', 'picture_objects']:
+                for obj in section.get(obj_list_name, []):
+                    if obj.get('name') == request.object_name:
+                        obj['hidden'] = True
+                        object_found = True
+                        break
+                if object_found:
+                    break
+            if object_found:
+                break
+        
+        if not object_found:
+            return ObjectActionResponse(
+                success=False,
+                message=f"Object '{request.object_name}' not found"
+            )
+        
+        # Update the stored metadata
+        qa_service.store_report_metadata(report_id, modified_metadata)
+        
+        return ObjectActionResponse(
+            success=True,
+            message=f"Object '{request.object_name}' hidden successfully",
+            action_result={
+                "action": "hide",
+                "object_name": request.object_name,
+                "timestamp": "2024-06-26T21:00:00Z",
+                "reversible": True
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to hide object: {str(e)}"
+        )
+
+
+@app.post("/reports/{report_id}/object/duplicate", response_model=ObjectActionResponse)
+async def duplicate_object(report_id: str, request: ObjectActionRequest):
+    """
+    Duplicate a report object (creates a copy with modified name)
+    Context menu action: "Duplicate Object"
+    """
+    
+    # Get report metadata
+    metadata = qa_service.get_report_metadata(report_id)
+    if not metadata:
+        raise HTTPException(
+            status_code=404,
+            detail="Report not found"
+        )
+    
+    try:
+        # Find the object to duplicate
+        object_found = False
+        modified_metadata = metadata.copy()
+        
+        for section in modified_metadata.get('sections', []):
+            # Check all object types
+            for obj_list_name in ['field_objects', 'text_objects', 'picture_objects']:
+                obj_list = section.get(obj_list_name, [])
+                for i, obj in enumerate(obj_list):
+                    if obj.get('name') == request.object_name:
+                        # Create duplicate
+                        duplicate_obj = obj.copy()
+                        duplicate_obj['name'] = f"{obj.get('name')} Copy"
+                        
+                        # Insert after original
+                        obj_list.insert(i + 1, duplicate_obj)
+                        object_found = True
+                        break
+                if object_found:
+                    break
+            if object_found:
+                break
+        
+        if not object_found:
+            return ObjectActionResponse(
+                success=False,
+                message=f"Object '{request.object_name}' not found"
+            )
+        
+        # Update the stored metadata
+        qa_service.store_report_metadata(report_id, modified_metadata)
+        
+        return ObjectActionResponse(
+            success=True,
+            message=f"Object '{request.object_name}' duplicated successfully",
+            action_result={
+                "action": "duplicate",
+                "original_name": request.object_name,
+                "duplicate_name": f"{request.object_name} Copy",
+                "timestamp": "2024-06-26T21:00:00Z"
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to duplicate object: {str(e)}"
+        )
+
+
+def _detect_field_data_type(field_obj: dict) -> str:
+    """Helper function to detect field data type"""
+    
+    field_name = field_obj.get('name', '').lower()
+    database_field = field_obj.get('database_field', '').lower()
+    formula = field_obj.get('formula', '').lower()
+    
+    # Date patterns
+    date_keywords = ['date', 'time', 'created', 'modified', 'updated', 'timestamp']
+    if any(keyword in field_name for keyword in date_keywords):
+        return 'date'
+    if any(keyword in database_field for keyword in date_keywords):
+        return 'date'
+    if 'now()' in formula or 'date' in formula:
+        return 'date'
+    
+    # Number patterns
+    number_keywords = ['amount', 'total', 'price', 'cost', 'sum', 'count', 'avg', 'id']
+    if any(keyword in field_name for keyword in number_keywords):
+        return 'number'
+    if 'sum(' in formula or 'count(' in formula or 'avg(' in formula:
+        return 'number'
+    
+    # Boolean patterns
+    bool_keywords = ['is', 'has', 'active', 'enabled', 'visible']
+    if any(field_name.startswith(keyword) for keyword in bool_keywords):
+        return 'boolean'
+    if 'if ' in formula and 'then' in formula:
+        return 'boolean'
+    
+    # Currency patterns
+    currency_keywords = ['revenue', 'payment', 'salary', 'fee']
+    if any(keyword in field_name for keyword in currency_keywords):
+        return 'currency'
+    
+    # Default to text
+    return 'text'
 
 
 if __name__ == "__main__":

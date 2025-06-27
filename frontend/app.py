@@ -414,185 +414,6 @@ def get_visual_preview(report_id: str, command: str = "") -> Dict[str, Any]:
         st.error(f"ERROR: Visual preview failed: {str(e)}")
         return {"success": False, "message": str(e)}
 
-# Context Menu API Functions
-def inspect_object(report_id: str, object_name: str, object_type: str, section_name: str = None) -> Dict[str, Any]:
-    """Inspect a report object and get detailed information"""
-    try:
-        response = requests.post(
-            f"{API_BASE_URL}/reports/{report_id}/object/inspect",
-            json={
-                "object_name": object_name,
-                "object_type": object_type,
-                "section_name": section_name,
-                "action_data": {}
-            }
-        )
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.ConnectionError:
-        st.error("ERROR: Cannot connect to backend API. Make sure FastAPI is running on port 8000.")
-        return {"success": False, "message": "Backend connection failed"}
-    except requests.exceptions.RequestException as e:
-        st.error(f"ERROR: Inspect object failed: {str(e)}")
-        return {"success": False, "message": str(e)}
-
-def copy_object_info(report_id: str, object_name: str, object_type: str, copy_type: str = "full") -> Dict[str, Any]:
-    """Copy object information"""
-    try:
-        response = requests.post(
-            f"{API_BASE_URL}/reports/{report_id}/object/copy",
-            json={
-                "object_name": object_name,
-                "object_type": object_type,
-                "action_data": {"copy_type": copy_type}
-            }
-        )
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.ConnectionError:
-        st.error("ERROR: Cannot connect to backend API. Make sure FastAPI is running on port 8000.")
-        return {"success": False, "message": "Backend connection failed"}
-    except requests.exceptions.RequestException as e:
-        st.error(f"ERROR: Copy object failed: {str(e)}")
-        return {"success": False, "message": str(e)}
-
-def hide_object(report_id: str, object_name: str, object_type: str) -> Dict[str, Any]:
-    """Hide a report object"""
-    try:
-        response = requests.post(
-            f"{API_BASE_URL}/reports/{report_id}/object/hide",
-            json={
-                "object_name": object_name,
-                "object_type": object_type,
-                "action_data": {}
-            }
-        )
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.ConnectionError:
-        st.error("ERROR: Cannot connect to backend API. Make sure FastAPI is running on port 8000.")
-        return {"success": False, "message": "Backend connection failed"}
-    except requests.exceptions.RequestException as e:
-        st.error(f"ERROR: Hide object failed: {str(e)}")
-        return {"success": False, "message": str(e)}
-
-def duplicate_object(report_id: str, object_name: str, object_type: str) -> Dict[str, Any]:
-    """Duplicate a report object"""
-    try:
-        response = requests.post(
-            f"{API_BASE_URL}/reports/{report_id}/object/duplicate",
-            json={
-                "object_name": object_name,
-                "object_type": object_type,
-                "action_data": {}
-            }
-        )
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.ConnectionError:
-        st.error("ERROR: Cannot connect to backend API. Make sure FastAPI is running on port 8000.")
-        return {"success": False, "message": "Backend connection failed"}
-    except requests.exceptions.RequestException as e:
-        st.error(f"ERROR: Duplicate object failed: {str(e)}")
-        return {"success": False, "message": str(e)}
-
-def display_qa_interface(report_id: str):
-    """Display Q&A interface for the uploaded report with modern styling"""
-    
-    # Check OpenAI status
-    openai_status = check_openai_health()
-    if openai_status.get("status") == "error":
-        st.markdown("""
-        <div class="content-card">
-            <h3>AI Services Unavailable</h3>
-            <p>OpenAI API connection issue: {}</p>
-            <p><strong>Note:</strong> Set your OPENAI_API_KEY environment variable to enable Q&A functionality.</p>
-        </div>
-        """.format(openai_status.get('message')), unsafe_allow_html=True)
-        return
-    
-    # Get suggested questions
-    suggested_questions = get_suggested_questions(report_id)
-    
-    # Question input section
-    st.markdown("""
-    <div class="content-card">
-        <h3>Ask Questions About Your Report</h3>
-        <p>Use natural language to explore your Crystal Reports structure, data sources, and formulas.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Question input
-    question = st.text_input(
-        "Enter your question:",
-        placeholder="What data sources does this report use?",
-        help="Ask about report structure, formulas, data sources, or any other aspect"
-    )
-    
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        ask_button = st.button("Ask Question", type="primary", disabled=not question.strip())
-    
-    # Suggested questions
-    if suggested_questions:
-        st.markdown("**Suggested Questions:**")
-        cols = st.columns(2)
-        for i, suggested_q in enumerate(suggested_questions[:6]):  # Show up to 6 suggestions
-            with cols[i % 2]:
-                if st.button(f"• {suggested_q}", key=f"suggested_{i}", use_container_width=True):
-                    question = suggested_q
-                    ask_button = True
-    
-    # Process question
-    if ask_button and question.strip():
-        with st.spinner("Analyzing your question..."):
-            try:
-                response = requests.post(
-                    f"{API_BASE_URL}/reports/{report_id}/ask",
-                    json={"question": question}
-                )
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    answer = result.get("answer", "No answer provided")
-                    
-                    # Display answer in a nice format
-                    st.markdown("""
-                    <div class="content-card">
-                        <h4>Answer</h4>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.markdown(answer)
-                    
-                    # Show confidence and sources if available
-                    if "confidence" in result:
-                        st.caption(f"Confidence: {result['confidence']:.1%}")
-                else:
-                    st.error(f"Error: {response.text}")
-                    
-            except requests.exceptions.RequestException as e:
-                st.error(f"Connection error: {str(e)}")
-            except Exception as e:
-                st.error(f"Error processing question: {str(e)}")
-    
-    # Show conversation history if available
-    if 'qa_history' not in st.session_state:
-        st.session_state.qa_history = []
-    
-    if st.session_state.qa_history:
-        st.markdown("---")
-        st.markdown("### Recent Questions")
-        
-        for i, (q, a) in enumerate(reversed(st.session_state.qa_history[-5:])):  # Show last 5
-            with st.expander(f"Q: {q[:80]}{'...' if len(q) > 80 else ''}"):
-                st.markdown(f"**Question:** {q}")
-                st.markdown(f"**Answer:** {a}")
-    
-    # Add current Q&A to history
-    if ask_button and question.strip() and 'answer' in locals():
-        st.session_state.qa_history.append((question, answer))
-
 def display_metadata(metadata: Dict[str, Any]):
     """Display parsed report metadata in structured format"""
     
@@ -737,11 +558,11 @@ def display_edit_interface(report_id: str):
         apply_button = st.button("Apply Changes", type="primary", disabled=not edit_command.strip(), use_container_width=True)
     
     with col2:
-        # Visual Preview Area with Enhanced Context Menu Support
+        # Visual Preview Area - Simplified
         st.markdown("""
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
             <h3 style="margin: 0; color: #1e293b; font-size: 1.125rem; font-weight: 600;">Visual Preview</h3>
-            <span style="font-size: 0.75rem; color: #6b7280;">Right-click objects for options</span>
+            <span style="font-size: 0.75rem; color: #6b7280;">Report layout and structure</span>
         </div>
         """, unsafe_allow_html=True)
         
@@ -749,7 +570,7 @@ def display_edit_interface(report_id: str):
         if 'show_visual_preview' not in st.session_state:
             st.session_state.show_visual_preview = True
         
-        # Enhanced preview with context menu support
+        # Simplified preview without context menu
         if st.session_state.show_visual_preview:
             display_enhanced_visual_preview(report_id)
     
@@ -831,18 +652,12 @@ def display_edit_interface(report_id: str):
         st.info("No edits have been applied to this report yet.")
 
 def display_enhanced_visual_preview(report_id: str):
-    """Enhanced visual preview with working context menu functionality"""
-    
-    # Initialize context menu state
-    if 'selected_object' not in st.session_state:
-        st.session_state.selected_object = None
-    if 'context_action' not in st.session_state:
-        st.session_state.context_action = None
+    """Simplified visual preview without context menu functionality"""
     
     with st.spinner("🔄 Loading report preview..."):
         visual_result = get_visual_preview(report_id)
         if visual_result.get("success"):
-            # Display the HTML preview with enhanced styling
+            # Display the HTML preview with clean styling
             preview_html = visual_result.get("preview_html", "")
             if preview_html:
                 st.markdown("""
@@ -854,166 +669,8 @@ def display_enhanced_visual_preview(report_id: str):
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Enhanced iframe container with PostMessage communication
-                enhanced_html = f"""
-                <div id="report-preview-container" style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #fafbfc;">
-                    {preview_html}
-                    <script>
-                    // Enhanced context menu with PostMessage communication
-                    let selectedObjectInfo = null;
-                    
-                    // Listen for messages from parent window
-                    window.addEventListener('message', function(event) {{
-                        if (event.data.type === 'GET_SELECTED_OBJECT') {{
-                            // Send selected object info back to parent
-                            event.source.postMessage({{
-                                type: 'SELECTED_OBJECT_RESPONSE',
-                                data: selectedObjectInfo
-                            }}, event.origin);
-                        }}
-                    }});
-                    
-                    document.addEventListener('contextmenu', function(e) {{
-                        const reportObject = e.target.closest('.field-object, .text-object, .picture-object');
-                        if (reportObject) {{
-                            e.preventDefault();
-                            
-                            // Get object information
-                            const objectName = reportObject.dataset.fieldName || 
-                                              reportObject.dataset.objectName || 
-                                              reportObject.querySelector('.object-label')?.textContent?.replace(':', '') || 
-                                              reportObject.textContent?.trim()?.split('\\n')[0] || 
-                                              'Unknown Object';
-                            
-                            const objectType = reportObject.classList.contains('field-object') ? 'field' :
-                                             reportObject.classList.contains('text-object') ? 'text' : 'picture';
-                            
-                            // Get section information
-                            const sectionElement = reportObject.closest('.report-section');
-                            const sectionName = sectionElement ? 
-                                (sectionElement.dataset.sectionName || 
-                                 sectionElement.querySelector('.section-header')?.textContent || 
-                                 'Unknown Section') : 'Unknown Section';
-                            
-                            // Store selected object info
-                            selectedObjectInfo = {{
-                                name: objectName,
-                                type: objectType,
-                                section: sectionName,
-                                element_id: reportObject.id || `${{objectType}}-${{Date.now()}}`,
-                                timestamp: new Date().toISOString()
-                            }};
-                            
-                            // Highlight selected object
-                            document.querySelectorAll('.context-selected').forEach(el => el.classList.remove('context-selected'));
-                            reportObject.classList.add('context-selected');
-                            
-                            // Show context info popup
-                            const contextInfo = document.createElement('div');
-                            contextInfo.style.cssText = `
-                                position: fixed;
-                                top: ${{e.clientY + 10}}px;
-                                left: ${{e.clientX + 10}}px;
-                                background: #1e293b;
-                                color: white;
-                                padding: 8px 12px;
-                                border-radius: 6px;
-                                font-size: 12px;
-                                z-index: 1000;
-                                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                                pointer-events: none;
-                                max-width: 200px;
-                            `;
-                            contextInfo.innerHTML = `
-                                <div style="font-weight: bold;">${{objectType.toUpperCase()}}</div>
-                                <div>${{objectName}}</div>
-                                <div style="opacity: 0.8; font-size: 10px;">${{sectionName}}</div>
-                            `;
-                            document.body.appendChild(contextInfo);
-                            
-                            // Remove popup after 3 seconds
-                            setTimeout(() => contextInfo.remove(), 3000);
-                            
-                            // Send selection to parent window via PostMessage
-                            window.parent.postMessage({{
-                                type: 'OBJECT_SELECTED',
-                                data: selectedObjectInfo
-                            }}, '*');
-                            
-                            console.log('Selected object:', selectedObjectInfo);
-                        }}
-                    }});
-                    
-                    // Add visual styling for selected objects
-                    const style = document.createElement('style');
-                    style.textContent = `
-                        .context-selected {{
-                            border: 3px solid #3b82f6 !important;
-                            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
-                            transform: translateY(-2px) !important;
-                            transition: all 0.2s ease !important;
-                        }}
-                        
-                        .field-object, .text-object, .picture-object {{
-                            cursor: pointer;
-                            transition: all 0.2s ease;
-                        }}
-                        
-                        .field-object:hover, .text-object:hover, .picture-object:hover {{
-                            transform: translateY(-1px);
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                        }}
-                    `;
-                    document.head.appendChild(style);
-                    
-                    // Auto-clear selection after 30 seconds
-                    setInterval(() => {{
-                        const selected = document.querySelector('.context-selected');
-                        if (selected && selectedObjectInfo) {{
-                            const timeDiff = Date.now() - new Date(selectedObjectInfo.timestamp).getTime();
-                            if (timeDiff > 30000) {{ // 30 seconds
-                                selected.classList.remove('context-selected');
-                                selectedObjectInfo = null;
-                                window.parent.postMessage({{
-                                    type: 'OBJECT_DESELECTED'
-                                }}, '*');
-                            }}
-                        }}
-                    }}, 5000);
-                    </script>
-                </div>
-                
-                <script>
-                // Parent window listener for PostMessage communication
-                window.addEventListener('message', function(event) {{
-                    if (event.data.type === 'OBJECT_SELECTED') {{
-                        // Store selected object in a way Streamlit can access
-                        window.crystalCopilotSelectedObject = event.data.data;
-                        
-                        // Trigger a custom event that Streamlit can potentially listen to
-                        const customEvent = new CustomEvent('objectSelected', {{
-                            detail: event.data.data
-                        }});
-                        window.dispatchEvent(customEvent);
-                        
-                        console.log('Object selected in parent:', event.data.data);
-                    }} else if (event.data.type === 'OBJECT_DESELECTED') {{
-                        window.crystalCopilotSelectedObject = null;
-                        console.log('Object deselected');
-                    }}
-                }});
-                
-                // Function to get selected object (can be called by Streamlit)
-                window.getSelectedObject = function() {{
-                    return window.crystalCopilotSelectedObject || null;
-                }};
-                </script>
-                """
-                
-                st.components.v1.html(enhanced_html, height=650, scrolling=True)
-                
-                # Context menu actions below the preview
-                display_context_menu_actions(report_id)
+                # Simple iframe container without complex JavaScript
+                st.components.v1.html(preview_html, height=650, scrolling=True)
                 
             else:
                 st.markdown("""
@@ -1032,264 +689,102 @@ def display_enhanced_visual_preview(report_id: str):
             </div>
             """, unsafe_allow_html=True)
 
-def display_context_menu_actions(report_id: str):
-    """Display context menu actions that work with Streamlit"""
+def display_qa_interface(report_id: str):
+    """Display Q&A interface for the uploaded report with modern styling"""
     
-    st.markdown("---")
-    st.markdown("### 🎯 Object Actions")
-    st.markdown("*Right-click any object above, then use these actions:*")
-    
-    # Initialize session state for selected object
-    if 'last_selected_object' not in st.session_state:
-        st.session_state.last_selected_object = None
-    if 'object_selection_time' not in st.session_state:
-        st.session_state.object_selection_time = None
-    
-    # Check if we have a selected object (this would be set by JavaScript via PostMessage)
-    # For now, we'll simulate this with session state, but in a real implementation,
-    # we'd need to use Streamlit's component communication
-    
-    # Display current selection status
-    if st.session_state.last_selected_object:
-        selected_obj = st.session_state.last_selected_object
-        st.markdown(f"""
-        <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <div style="width: 8px; height: 8px; background: #3b82f6; border-radius: 50%;"></div>
-                <strong style="color: #1e40af;">Selected: {selected_obj.get('name', 'Unknown')}</strong>
-            </div>
-            <div style="color: #3730a3; font-size: 0.875rem; margin-top: 0.25rem;">
-                Type: {selected_obj.get('type', 'Unknown').title()} • 
-                Section: {selected_obj.get('section', 'Unknown')}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
+    # Check OpenAI status
+    openai_status = check_openai_health()
+    if openai_status.get("status") == "error":
         st.markdown("""
-        <div style="background: #f9fafb; border: 1px solid #d1d5db; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
-            <div style="color: #6b7280; text-align: center;">
-                No object selected. Right-click an object in the preview above.
-            </div>
+        <div class="content-card">
+            <h3>AI Services Unavailable</h3>
+            <p>OpenAI API connection issue: {}</p>
+            <p><strong>Note:</strong> Set your OPENAI_API_KEY environment variable to enable Q&A functionality.</p>
         </div>
-        """, unsafe_allow_html=True)
+        """.format(openai_status.get('message')), unsafe_allow_html=True)
+        return
     
-    # Create columns for different action types
-    col1, col2, col3 = st.columns(3)
+    # Get suggested questions
+    suggested_questions = get_suggested_questions(report_id)
     
-    with col1:
-        st.markdown("**📋 Copy Actions**")
-        
-        # Remove nested columns - use full width buttons instead
-        if st.button("📋 Copy Name", help="Copy the object name", key="copy_name", use_container_width=True):
-            if st.session_state.last_selected_object:
-                result = copy_object_info(
-                    report_id, 
-                    st.session_state.last_selected_object['name'],
-                    st.session_state.last_selected_object['type'],
-                    "name_only"
-                )
-                if result.get("success"):
-                    copy_text = result.get("action_result", {}).get("copy_text", "")
-                    st.success(f"✅ Copied: `{copy_text}`")
-                else:
-                    st.error(f"❌ {result.get('message', 'Copy failed')}")
-            else:
-                st.warning("⚠️ Right-click an object first")
-        
-        if st.button("📄 Copy Info", help="Copy full object information", key="copy_info", use_container_width=True):
-            if st.session_state.last_selected_object:
-                result = copy_object_info(
-                    report_id, 
-                    st.session_state.last_selected_object['name'],
-                    st.session_state.last_selected_object['type'],
-                    "full"
-                )
-                if result.get("success"):
-                    copy_text = result.get("action_result", {}).get("copy_text", "")
-                    st.success("✅ Full object info copied!")
-                    with st.expander("📋 Copied Content"):
-                        st.text(copy_text)
-                else:
-                    st.error(f"❌ {result.get('message', 'Copy failed')}")
-            else:
-                st.warning("⚠️ Right-click an object first")
-        
-        if st.button("🔍 Inspect Object", help="Show detailed information about the object", key="inspect", use_container_width=True):
-            if st.session_state.last_selected_object:
-                with st.spinner("🔍 Inspecting object..."):
-                    result = inspect_object(
-                        report_id,
-                        st.session_state.last_selected_object['name'],
-                        st.session_state.last_selected_object['type'],
-                        st.session_state.last_selected_object.get('section')
-                    )
-                    if result.get("success"):
-                        st.success("✅ Object inspection complete!")
-                        
-                        # Display detailed object information
-                        obj_info = result.get("object_info", {})
-                        
-                        with st.expander("🔍 Object Details", expanded=True):
-                            # Use simple layout instead of nested columns
-                            st.markdown("**Basic Information:**")
-                            st.write(f"**Name:** {obj_info.get('name', 'Unknown')}")
-                            st.write(f"**Type:** {obj_info.get('object_type', 'Unknown').title()}")
-                            st.write(f"**Section:** {obj_info.get('section', 'Unknown')}")
-                            st.write(f"**Hidden:** {'Yes' if obj_info.get('hidden') else 'No'}")
-                            
-                            if obj_info.get('object_type') == 'field':
-                                st.markdown("**Field Information:**")
-                                if obj_info.get('database_field'):
-                                    st.write(f"**Database Field:** {obj_info.get('database_field')}")
-                                if obj_info.get('formula'):
-                                    st.write("**Formula:**")
-                                    st.code(obj_info.get('formula'), language='sql')
-                                if obj_info.get('detected_data_type'):
-                                    st.write(f"**Data Type:** {obj_info.get('detected_data_type').title()}")
-                            elif obj_info.get('object_type') == 'text':
-                                st.markdown("**Text Information:**")
-                                st.write(f"**Text Content:** {obj_info.get('text', 'No text')}")
-                            elif obj_info.get('object_type') == 'picture':
-                                st.markdown("**Picture Information:**")
-                                st.write(f"**Image Path:** {obj_info.get('image_path', 'No path')}")
-                            
-                            if obj_info.get('formatting'):
-                                st.markdown("**Formatting:**")
-                                for key, value in obj_info.get('formatting', {}).items():
-                                    st.write(f"**{key.title()}:** {value}")
-                    else:
-                        st.error(f"❌ {result.get('message', 'Inspection failed')}")
-            else:
-                st.warning("⚠️ Right-click an object first")
-    
-    with col2:
-        st.markdown("**✏️ Edit Actions**")
-        
-        if st.button("👁️ Hide Object", help="Hide the selected object", key="hide", use_container_width=True):
-            if st.session_state.last_selected_object:
-                with st.spinner("👁️ Hiding object..."):
-                    result = hide_object(
-                        report_id,
-                        st.session_state.last_selected_object['name'],
-                        st.session_state.last_selected_object['type']
-                    )
-                    if result.get("success"):
-                        st.success(f"✅ Object '{st.session_state.last_selected_object['name']}' hidden successfully!")
-                        st.info("🔄 Refresh the preview to see changes")
-                        
-                        # Clear selection since object is now hidden
-                        st.session_state.last_selected_object = None
-                    else:
-                        st.error(f"❌ {result.get('message', 'Hide failed')}")
-            else:
-                st.warning("⚠️ Right-click an object first")
-        
-        if st.button("📄 Duplicate Object", help="Create a copy of the object", key="duplicate", use_container_width=True):
-            if st.session_state.last_selected_object:
-                with st.spinner("📄 Duplicating object..."):
-                    result = duplicate_object(
-                        report_id,
-                        st.session_state.last_selected_object['name'],
-                        st.session_state.last_selected_object['type']
-                    )
-                    if result.get("success"):
-                        action_result = result.get("action_result", {})
-                        st.success(f"✅ Object duplicated successfully!")
-                        st.info(f"📄 Created: '{action_result.get('duplicate_name', 'Copy')}'")
-                        st.info("🔄 Refresh the preview to see the new object")
-                    else:
-                        st.error(f"❌ {result.get('message', 'Duplicate failed')}")
-            else:
-                st.warning("⚠️ Right-click an object first")
-    
-    with col3:
-        st.markdown("**🔄 Move Actions**")
-        
-        # Quick rename action
-        new_name = st.text_input("Rename to:", placeholder="New object name", key="rename_input")
-        if st.button("✏️ Rename Object", disabled=not new_name.strip(), key="rename", use_container_width=True):
-            if st.session_state.last_selected_object:
-                # Use natural language editing for rename
-                command = f"Rename '{st.session_state.last_selected_object['name']}' to '{new_name.strip()}'"
-                with st.spinner("✏️ Renaming object..."):
-                    result = apply_edit(report_id, command)
-                    if result.get("success"):
-                        st.success(f"✅ Object renamed to '{new_name.strip()}'!")
-                        st.info("🔄 Refresh the preview to see changes")
-                        
-                        # Update selected object name
-                        st.session_state.last_selected_object['name'] = new_name.strip()
-                    else:
-                        st.error(f"❌ {result.get('message', 'Rename failed')}")
-            else:
-                st.warning("⚠️ Right-click an object first")
-        
-        # Move to section
-        move_to_section = st.selectbox("Move to section:", 
-                                      ["Report Header", "Page Header", "Details", "Report Footer", "Page Footer"],
-                                      key="move_section")
-        if st.button("📦 Move to Section", key="move", use_container_width=True):
-            if st.session_state.last_selected_object:
-                command = f"Move '{st.session_state.last_selected_object['name']}' to '{move_to_section}' section"
-                with st.spinner("📦 Moving object..."):
-                    result = apply_edit(report_id, command)
-                    if result.get("success"):
-                        st.success(f"✅ Object moved to {move_to_section}!")
-                        st.info("🔄 Refresh the preview to see changes")
-                        
-                        # Update selected object section
-                        st.session_state.last_selected_object['section'] = move_to_section
-                    else:
-                        st.error(f"❌ {result.get('message', 'Move failed')}")
-            else:
-                st.warning("⚠️ Right-click an object first")
-    
-    # Manual object selection for testing
-    st.markdown("---")
-    st.markdown("### 🧪 Manual Object Selection (for testing)")
-    
-    col_test1, col_test2, col_test3 = st.columns(3)
-    
-    with col_test1:
-        test_name = st.text_input("Object Name:", placeholder="Customer Name", key="test_name")
-    with col_test2:
-        test_type = st.selectbox("Object Type:", ["field", "text", "picture"], key="test_type")
-    with col_test3:
-        test_section = st.text_input("Section:", placeholder="Report Header", key="test_section")
-    
-    if st.button("🎯 Select Object Manually", key="manual_select", use_container_width=True):
-        if test_name.strip():
-            st.session_state.last_selected_object = {
-                "name": test_name.strip(),
-                "type": test_type,
-                "section": test_section.strip() or "Unknown Section",
-                "timestamp": "2024-06-26T21:00:00Z"
-            }
-            st.session_state.object_selection_time = "2024-06-26T21:00:00Z"
-            st.success(f"✅ Manually selected: {test_name.strip()}")
-            st.rerun()
-        else:
-            st.warning("⚠️ Enter an object name")
-    
-    # Clear selection button
-    if st.button("🗑️ Clear Selection", key="clear_selection", use_container_width=True):
-        st.session_state.last_selected_object = None
-        st.session_state.object_selection_time = None
-        st.success("✅ Selection cleared")
-        st.rerun()
-    
-    # Show instructions
+    # Question input section
     st.markdown("""
-    ---
-    **💡 How to use:**
-    1. **Right-click** any field, text, or picture object in the preview above
-    2. You'll see a popup confirming your selection and the object will be highlighted
-    3. The selected object info will appear in the blue box above
-    4. Use the action buttons to perform operations on the selected object
-    5. For testing, you can also manually select objects using the form above
+    <div class="content-card">
+        <h3>Ask Questions About Your Report</h3>
+        <p>Use natural language to explore your Crystal Reports structure, data sources, and formulas.</p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    **🔄 Note:** After hiding, duplicating, or moving objects, refresh the preview to see changes.
-    """)
+    # Question input
+    question = st.text_input(
+        "Enter your question:",
+        placeholder="What data sources does this report use?",
+        help="Ask about report structure, formulas, data sources, or any other aspect"
+    )
+    
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        ask_button = st.button("Ask Question", type="primary", disabled=not question.strip())
+    
+    # Suggested questions
+    if suggested_questions:
+        st.markdown("**Suggested Questions:**")
+        cols = st.columns(2)
+        for i, suggested_q in enumerate(suggested_questions[:6]):  # Show up to 6 suggestions
+            with cols[i % 2]:
+                if st.button(f"• {suggested_q}", key=f"suggested_{i}", use_container_width=True):
+                    question = suggested_q
+                    ask_button = True
+    
+    # Process question
+    if ask_button and question.strip():
+        with st.spinner("Analyzing your question..."):
+            try:
+                response = requests.post(
+                    f"{API_BASE_URL}/reports/{report_id}/ask",
+                    json={"question": question}
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    answer = result.get("answer", "No answer provided")
+                    
+                    # Display answer in a nice format
+                    st.markdown("""
+                    <div class="content-card">
+                        <h4>Answer</h4>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.markdown(answer)
+                    
+                    # Show confidence and sources if available
+                    if "confidence" in result:
+                        st.caption(f"Confidence: {result['confidence']:.1%}")
+                else:
+                    st.error(f"Error: {response.text}")
+                    
+            except requests.exceptions.RequestException as e:
+                st.error(f"Connection error: {str(e)}")
+            except Exception as e:
+                st.error(f"Error processing question: {str(e)}")
+    
+    # Show conversation history if available
+    if 'qa_history' not in st.session_state:
+        st.session_state.qa_history = []
+    
+    if st.session_state.qa_history:
+        st.markdown("---")
+        st.markdown("### Recent Questions")
+        
+        for i, (q, a) in enumerate(reversed(st.session_state.qa_history[-5:])):  # Show last 5
+            with st.expander(f"Q: {q[:80]}{'...' if len(q) > 80 else ''}"):
+                st.markdown(f"**Question:** {q}")
+                st.markdown(f"**Answer:** {a}")
+    
+    # Add current Q&A to history
+    if ask_button and question.strip() and 'answer' in locals():
+        st.session_state.qa_history.append((question, answer))
 
 def main():
     """Main Streamlit application with Loom-inspired layout"""

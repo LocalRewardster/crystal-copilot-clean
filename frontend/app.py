@@ -509,7 +509,7 @@ def display_metadata(metadata: Dict[str, Any]):
                         st.code(lineage_info['formula'], language='sql')
 
 def display_edit_interface(report_id: str):
-    """Display natural language editing interface"""
+    """Display natural language editing interface with improved preview layout"""
     
     st.header("Report Editor")
     st.markdown("Make changes to your Crystal Report using natural language commands.")
@@ -521,90 +521,81 @@ def display_edit_interface(report_id: str):
         st.info("NOTE: Set your OPENAI_API_KEY environment variable to enable editing functionality.")
         return
     
-    # Create two columns for input and preview
-    col1, col2 = st.columns([1, 1])
+    # Command Input Section - Full Width
+    st.markdown("""
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;">
+        <h3 style="margin: 0 0 1rem 0; color: #1e293b; font-size: 1.25rem; font-weight: 600;">📝 Edit Command</h3>
+        <p style="margin: 0; color: #64748b; font-size: 0.875rem;">Describe what you want to change in plain English</p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    with col1:
-        # Edit command input
-        st.subheader("Edit Command")
+    # Create input area with examples in expandable section
+    col_input, col_examples = st.columns([2, 1])
+    
+    with col_input:
+        # Command input
+        edit_command = st.text_input(
+            "Enter your edit command:",
+            placeholder="e.g., Rename 'Customer Name' to 'Client Name'",
+            help="Describe what you want to change in plain English",
+            label_visibility="collapsed"
+        )
         
+        # Action buttons
+        col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
+        with col_btn1:
+            preview_button = st.button("👁️ Preview", type="secondary", disabled=not edit_command.strip(), use_container_width=True)
+        with col_btn2:
+            apply_button = st.button("✅ Apply", type="primary", disabled=not edit_command.strip(), use_container_width=True)
+    
+    with col_examples:
         # Example commands for guidance
-        with st.expander("Example Commands"):
+        with st.expander("💡 Example Commands"):
             st.markdown("""
             **Field Operations:**
             - "Rename 'Customer Name' to 'Client Name'"
             - "Hide the 'Internal ID' field"
-            - "Move 'Total Amount' to the footer section"
+            - "Move 'Total Amount' to footer"
             - "Make 'Company Name' bold"
             
             **Text Changes:**
-            - "Change the title to 'Q4 Sales Report'"
+            - "Change title to 'Q4 Sales Report'"
             - "Hide the 'Old Logo' text"
             
             **Section Operations:**
             - "Hide the page header"
             - "Show the report footer"
             """)
-        
-        # Command input
-        edit_command = st.text_input(
-            "Enter your edit command:",
-            placeholder="e.g., Rename 'Customer Name' to 'Client Name'",
-            help="Describe what you want to change in plain English"
-        )
-        
-        # Buttons - use full width instead of nested columns
-        preview_button = st.button("Preview Changes", type="secondary", disabled=not edit_command.strip(), use_container_width=True)
-        apply_button = st.button("Apply Changes", type="primary", disabled=not edit_command.strip(), use_container_width=True)
     
-    with col2:
-        # Visual Preview Area - Simplified
-        st.markdown("""
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
-            <h3 style="margin: 0; color: #1e293b; font-size: 1.125rem; font-weight: 600;">Visual Preview</h3>
-            <span style="font-size: 0.75rem; color: #6b7280;">Report layout and structure</span>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Show current report or preview
-        if 'show_visual_preview' not in st.session_state:
-            st.session_state.show_visual_preview = True
-        
-        # Simplified preview without context menu
-        if st.session_state.show_visual_preview:
-            display_enhanced_visual_preview(report_id)
+    # Initialize session state for preview mode
+    if 'preview_mode' not in st.session_state:
+        st.session_state.preview_mode = False
+    if 'preview_data' not in st.session_state:
+        st.session_state.preview_data = None
     
-    # Process commands
+    # Process Preview Command
     if preview_button and edit_command.strip():
-        with st.spinner("Generating visual preview..."):
+        with st.spinner("🔄 Generating visual preview..."):
             # Get visual preview with changes
             visual_result = get_visual_preview(report_id, edit_command.strip())
             
             if visual_result.get("success"):
-                # Update the preview area
-                with col2:
-                    st.subheader("Preview Changes")
-                    preview_html = visual_result.get("preview_html", "")
-                    if preview_html:
-                        st.components.v1.html(preview_html, height=700, scrolling=True)
-                    
-                    # Show text summary
-                    changes = visual_result.get("changes", {})
-                    if changes.get("changes"):
-                        st.success(f"**Preview:** {changes.get('summary', 'Changes detected')}")
-                        for change in changes["changes"]:
-                            st.write(f"• {change}")
-                    else:
-                        st.warning("No changes detected in preview")
+                st.session_state.preview_mode = True
+                st.session_state.preview_data = {
+                    'command': edit_command.strip(),
+                    'result': visual_result
+                }
+                st.rerun()
             else:
-                st.error(f"ERROR: {visual_result.get('message', 'Preview failed')}")
+                st.error(f"❌ Preview Error: {visual_result.get('message', 'Preview failed')}")
     
+    # Process Apply Command
     if apply_button and edit_command.strip():
-        with st.spinner("Applying edit..."):
+        with st.spinner("⚙️ Applying changes..."):
             result = apply_edit(report_id, edit_command.strip())
             
             if result.get("success"):
-                st.success("Edit applied successfully!")
+                st.success("✅ Edit applied successfully!")
                 
                 # Show what changed
                 preview = result.get("preview", {})
@@ -613,7 +604,7 @@ def display_edit_interface(report_id: str):
                     for change in preview["changes"]:
                         st.write(f"• {change}")
                 
-                # Update session state to trigger refresh
+                # Update session state
                 if 'edit_applied' not in st.session_state:
                     st.session_state.edit_applied = 0
                 st.session_state.edit_applied += 1
@@ -621,18 +612,124 @@ def display_edit_interface(report_id: str):
                 # Refresh metadata
                 st.session_state.current_metadata = result.get("modified_metadata", st.session_state.current_metadata)
                 
-                # Refresh visual preview to show updated report
-                st.session_state.show_visual_preview = True
-                
-                # Clear the input and refresh
+                # Clear preview mode and refresh
+                st.session_state.preview_mode = False
+                st.session_state.preview_data = None
                 st.rerun()
                 
             else:
-                st.error(f"ERROR: {result.get('message', 'Apply failed')}")
+                st.error(f"❌ Apply Error: {result.get('message', 'Apply failed')}")
     
-    # Edit History (moved below the main interface)
-    st.divider()
-    st.subheader("Edit History")
+    # Visual Preview Section - Much Larger and More Prominent
+    st.markdown("---")
+    
+    if st.session_state.preview_mode and st.session_state.preview_data:
+        # PREVIEW MODE - Show Before/After Comparison
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 2px solid #3b82f6; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <div style="width: 12px; height: 12px; background: #3b82f6; border-radius: 50%; animation: pulse 2s infinite;"></div>
+                <h2 style="margin: 0; color: #1e40af; font-size: 1.5rem; font-weight: 700;">📋 Preview Changes</h2>
+            </div>
+            <p style="margin: 0; color: #3730a3; font-size: 1rem; font-weight: 500;">
+                Command: "{}"
+            </p>
+        </div>
+        """.format(st.session_state.preview_data['command']), unsafe_allow_html=True)
+        
+        # Show changes summary
+        changes = st.session_state.preview_data['result'].get("changes", {})
+        if changes.get("changes"):
+            st.success(f"**Changes Detected:** {changes.get('summary', 'Modifications found')}")
+            for change in changes["changes"]:
+                st.write(f"✓ {change}")
+        
+        # Before/After Comparison with Tabs
+        tab1, tab2 = st.tabs(["🔍 **MODIFIED REPORT** (Preview)", "📄 **ORIGINAL REPORT** (Current)"])
+        
+        with tab1:
+            st.markdown("""
+            <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <div style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%;"></div>
+                    <span style="font-weight: 600; color: #15803d; font-size: 1rem;">Preview with Your Changes Applied</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Show modified preview - FULL WIDTH
+            preview_html = st.session_state.preview_data['result'].get("preview_html", "")
+            if preview_html:
+                enhanced_html = f"""
+                <div style="border: 2px solid #22c55e; border-radius: 8px; overflow: hidden; background: white; box-shadow: 0 4px 20px rgba(34, 197, 94, 0.1);">
+                    {preview_html}
+                    <style>
+                    body {{ margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }}
+                    </style>
+                </div>
+                """
+                st.components.v1.html(enhanced_html, height=800, scrolling=True)
+            else:
+                st.warning("No preview HTML available")
+        
+        with tab2:
+            st.markdown("""
+            <div style="background: #f8fafc; border: 2px solid #64748b; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <div style="width: 8px; height: 8px; background: #64748b; border-radius: 50%;"></div>
+                    <span style="font-weight: 600; color: #475569; font-size: 1rem;">Current Report (Before Changes)</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Show original report
+            display_enhanced_visual_preview(report_id)
+        
+        # Action buttons for preview mode
+        st.markdown("---")
+        col1, col2, col3 = st.columns([1, 1, 2])
+        with col1:
+            if st.button("❌ Cancel Preview", type="secondary", use_container_width=True):
+                st.session_state.preview_mode = False
+                st.session_state.preview_data = None
+                st.rerun()
+        with col2:
+            if st.button("✅ Apply These Changes", type="primary", use_container_width=True):
+                # Apply the previewed changes
+                with st.spinner("⚙️ Applying changes..."):
+                    result = apply_edit(report_id, st.session_state.preview_data['command'])
+                    
+                    if result.get("success"):
+                        st.success("✅ Changes applied successfully!")
+                        st.session_state.preview_mode = False
+                        st.session_state.preview_data = None
+                        st.session_state.current_metadata = result.get("modified_metadata", st.session_state.current_metadata)
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Apply failed: {result.get('message', 'Unknown error')}")
+    
+    else:
+        # NORMAL MODE - Show Current Report
+        st.markdown("""
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <div style="width: 12px; height: 12px; background: #10b981; border-radius: 50%;"></div>
+                <h2 style="margin: 0; color: #1e293b; font-size: 1.5rem; font-weight: 700;">📄 Current Report</h2>
+            </div>
+            <p style="margin: 0; color: #64748b; font-size: 1rem;">This is how your report currently looks. Use the command above to preview changes.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Show current report - FULL WIDTH
+        display_enhanced_visual_preview(report_id)
+    
+    # Edit History Section
+    st.markdown("---")
+    st.markdown("""
+    <div style="background: #fafafa; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.5rem; margin-top: 2rem;">
+        <h3 style="margin: 0 0 1rem 0; color: #1e293b; font-size: 1.25rem; font-weight: 600;">📚 Edit History</h3>
+    </div>
+    """, unsafe_allow_html=True)
     
     edit_history = get_edit_history(report_id)
     
@@ -649,7 +746,7 @@ def display_edit_interface(report_id: str):
                 if edit.get('parameters'):
                     st.write(f"**Parameters:** {edit.get('parameters')}")
     else:
-        st.info("No edits have been applied to this report yet.")
+        st.info("💡 No edits have been applied to this report yet. Try making your first change above!")
 
 def display_enhanced_visual_preview(report_id: str):
     """Simplified visual preview without context menu functionality"""

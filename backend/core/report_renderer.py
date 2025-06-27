@@ -76,9 +76,25 @@ class ReportRenderer:
         if highlight_changes:
             changes = highlight_changes.get('changes', [])
             for change in changes:
-                if section_name.lower() in change.lower():
-                    has_changes = True
-                    break
+                # Handle both old string format and new dict format
+                if isinstance(change, dict):
+                    # New structured format - check if this section is mentioned
+                    change_description = change.get('description', '')
+                    change_target = change.get('target', '')
+                    old_value = change.get('old_value', '')
+                    new_value = change.get('new_value', '')
+                    
+                    if (section_name.lower() in change_description.lower() or
+                        section_name.lower() == change_target.lower() or
+                        section_name.lower() == old_value.lower() or
+                        section_name.lower() == new_value.lower()):
+                        has_changes = True
+                        break
+                else:
+                    # Old string format (fallback)
+                    if section_name.lower() in str(change).lower():
+                        has_changes = True
+                        break
         
         if has_changes:
             section_class += " section-changed"
@@ -132,9 +148,25 @@ class ReportRenderer:
         if highlight_changes:
             changes = highlight_changes.get('changes', [])
             for change in changes:
-                if name.lower() in change.lower():
-                    is_changed = True
-                    break
+                # Handle both old string format and new dict format
+                if isinstance(change, dict):
+                    # New structured format - check if this object is mentioned
+                    change_description = change.get('description', '')
+                    change_target = change.get('target', '')
+                    old_value = change.get('old_value', '')
+                    new_value = change.get('new_value', '')
+                    
+                    if (name.lower() in change_description.lower() or
+                        name.lower() == change_target.lower() or
+                        name.lower() == old_value.lower() or
+                        name.lower() == new_value.lower()):
+                        is_changed = True
+                        break
+                else:
+                    # Old string format (fallback)
+                    if name.lower() in str(change).lower():
+                        is_changed = True
+                        break
         
         css_class = "text-object"
         if is_hidden:
@@ -188,8 +220,28 @@ class ReportRenderer:
         
         # Check if this field was changed
         is_changed = False
-        if highlight_changes and highlight_changes.get('fields'):
-            is_changed = name in highlight_changes['fields']
+        if highlight_changes:
+            changes = highlight_changes.get('changes', [])
+            for change in changes:
+                # Handle both old string format and new dict format
+                if isinstance(change, dict):
+                    # New structured format - check if this object is mentioned
+                    change_description = change.get('description', '')
+                    change_target = change.get('target', '')
+                    old_value = change.get('old_value', '')
+                    new_value = change.get('new_value', '')
+                    
+                    if (name.lower() in change_description.lower() or
+                        name.lower() == change_target.lower() or
+                        name.lower() == old_value.lower() or
+                        name.lower() == new_value.lower()):
+                        is_changed = True
+                        break
+                else:
+                    # Old string format (fallback)
+                    if name.lower() in str(change).lower():
+                        is_changed = True
+                        break
         
         css_class = "field-object"
         if is_hidden:
@@ -274,7 +326,7 @@ class ReportRenderer:
         """Get icon and color for data type"""
         
         type_mapping = {
-            'Text': {'icon': '📝', 'color': '#6b7280'},
+            'Text': {'icon': '��', 'color': '#6b7280'},
             'Number': {'icon': '🔢', 'color': '#3b82f6'},
             'Date': {'icon': '📅', 'color': '#10b981'},
             'Boolean': {'icon': '☑️', 'color': '#8b5cf6'},
@@ -345,9 +397,25 @@ class ReportRenderer:
         if highlight_changes:
             changes = highlight_changes.get('changes', [])
             for change in changes:
-                if name.lower() in change.lower():
-                    is_changed = True
-                    break
+                # Handle both old string format and new dict format
+                if isinstance(change, dict):
+                    # New structured format - check if this object is mentioned
+                    change_description = change.get('description', '')
+                    change_target = change.get('target', '')
+                    old_value = change.get('old_value', '')
+                    new_value = change.get('new_value', '')
+                    
+                    if (name.lower() in change_description.lower() or
+                        name.lower() == change_target.lower() or
+                        name.lower() == old_value.lower() or
+                        name.lower() == new_value.lower()):
+                        is_changed = True
+                        break
+                else:
+                    # Old string format (fallback)
+                    if name.lower() in str(change).lower():
+                        is_changed = True
+                        break
         
         css_class = "picture-object"
         if is_hidden:
@@ -1381,6 +1449,34 @@ class ReportRenderer:
         original_html = self.render_report_html(original_metadata)
         modified_html = self.render_report_html(modified_metadata, changes)
         
+        # Handle both old string format and new structured format
+        changes_list = changes.get("changes", [])
+        formatted_changes = []
+        
+        for change in changes_list:
+            if isinstance(change, dict):
+                # New structured format
+                description = change.get("description", str(change))
+                change_type = change.get("type", "unknown")
+                
+                # Add icons based on change type
+                icon_map = {
+                    "rename": "🏷️",
+                    "hide": "👁️‍🗨️", 
+                    "show": "👁️",
+                    "move": "📦",
+                    "text_change": "📝",
+                    "format": "🎨",
+                    "hide_section": "📂",
+                    "show_section": "📁"
+                }
+                
+                icon = icon_map.get(change_type, "✓")
+                formatted_changes.append(f"{icon} {description}")
+            else:
+                # Old string format (fallback)
+                formatted_changes.append(str(change))
+        
         comparison_html = f"""
         <style>
         .report-comparison {{
@@ -1450,7 +1546,7 @@ class ReportRenderer:
         <div class="changes-summary">
             <h4>Preview Changes</h4>
             <ul class="changes-list">
-                {(''.join([f'<li>{change}</li>' for change in changes.get("changes", [])]))}
+                {(''.join([f'<li>{change}</li>' for change in formatted_changes]))}
             </ul>
             <p><strong>{changes.get("summary", "No changes detected")}</strong></p>
         </div>

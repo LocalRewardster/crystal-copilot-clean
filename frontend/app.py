@@ -602,7 +602,28 @@ def display_edit_interface(report_id: str):
                 if preview.get("changes"):
                     st.info(f"**Applied:** {preview.get('summary', 'Changes applied')}")
                     for change in preview["changes"]:
-                        st.write(f"• {change}")
+                        if isinstance(change, dict):
+                            # New structured format
+                            change_type = change.get("type", "unknown")
+                            description = change.get("description", str(change))
+                            
+                            # Add icons based on change type
+                            icon_map = {
+                                "rename": "🏷️",
+                                "hide": "👁️‍🗨️",
+                                "show": "👁️",
+                                "move": "📦",
+                                "text_change": "📝",
+                                "format": "🎨",
+                                "hide_section": "📂",
+                                "show_section": "📁"
+                            }
+                            
+                            icon = icon_map.get(change_type, "✓")
+                            st.write(f"{icon} {description}")
+                        else:
+                            # Fallback for old string format
+                            st.write(f"• {change}")
                 
                 # Update session state
                 if 'edit_applied' not in st.session_state:
@@ -641,8 +662,43 @@ def display_edit_interface(report_id: str):
         changes = st.session_state.preview_data['result'].get("changes", {})
         if changes.get("changes"):
             st.success(f"**Changes Detected:** {changes.get('summary', 'Modifications found')}")
+            
+            # Display structured changes
             for change in changes["changes"]:
-                st.write(f"✓ {change}")
+                if isinstance(change, dict):
+                    # New structured format
+                    change_type = change.get("type", "unknown")
+                    description = change.get("description", str(change))
+                    
+                    # Add icons based on change type
+                    icon_map = {
+                        "rename": "🏷️",
+                        "hide": "👁️‍🗨️",
+                        "show": "👁️",
+                        "move": "📦",
+                        "text_change": "📝",
+                        "format": "🎨",
+                        "hide_section": "📂",
+                        "show_section": "📁"
+                    }
+                    
+                    icon = icon_map.get(change_type, "✓")
+                    st.write(f"{icon} {description}")
+                    
+                    # Show additional details in smaller text
+                    details = []
+                    if change.get("section"):
+                        details.append(f"Section: {change['section']}")
+                    if change.get("old_value") and change.get("new_value"):
+                        details.append(f"'{change['old_value']}' → '{change['new_value']}'")
+                    
+                    if details:
+                        st.caption("   " + " | ".join(details))
+                else:
+                    # Fallback for old string format
+                    st.write(f"✓ {change}")
+        else:
+            st.info("ℹ️ No changes detected - the command may not match any existing fields or sections.")
         
         # Before/After Comparison with Tabs
         tab1, tab2 = st.tabs(["🔍 **MODIFIED REPORT** (Preview)", "📄 **ORIGINAL REPORT** (Current)"])

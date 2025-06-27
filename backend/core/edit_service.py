@@ -578,54 +578,203 @@ Only return the JSON object, no other text."""
         ]
 
     def create_edit_preview(self, original_metadata: Dict, modified_metadata: Dict) -> Dict:
-        """Create a preview showing what will change"""
+        """Create a preview showing what will change - works with actual report structure"""
         
         preview = {
             "changes": [],
             "summary": ""
         }
         
-        # Compare field lineage changes
-        original_fields = set(original_metadata.get('field_lineage', {}).keys())
-        modified_fields = set(modified_metadata.get('field_lineage', {}).keys())
-        
-        # Field renames
-        if original_fields != modified_fields:
-            removed = original_fields - modified_fields
-            added = modified_fields - original_fields
-            if len(removed) == 1 and len(added) == 1:
-                old_name = list(removed)[0]
-                new_name = list(added)[0]
-                preview["changes"].append(f"Renamed '{old_name}' to '{new_name}'")
-        
-        # Hidden field changes
-        for field_name in original_fields:
-            if field_name in modified_metadata.get('field_lineage', {}):
-                original_hidden = original_metadata.get('field_lineage', {}).get(field_name, {}).get('hidden', False)
-                modified_hidden = modified_metadata.get('field_lineage', {}).get(field_name, {}).get('hidden', False)
+        # Helper function to find all objects in sections
+        def get_all_objects_from_sections(metadata):
+            objects = {}
+            sections = metadata.get('sections', [])
+            for section in sections:
+                section_name = section.get('name', 'Unknown Section')
                 
-                if not original_hidden and modified_hidden:
-                    preview["changes"].append(f"Hidden field '{field_name}'")
-                elif original_hidden and not modified_hidden:
-                    preview["changes"].append(f"Showed field '{field_name}'")
+                # Field objects
+                for field_obj in section.get('field_objects', []):
+                    obj_name = field_obj.get('name', '')
+                    if obj_name:
+                        objects[obj_name] = {
+                            'type': 'field',
+                            'section': section_name,
+                            'data': field_obj,
+                            'section_index': sections.index(section)
+                        }
+                
+                # Text objects
+                for text_obj in section.get('text_objects', []):
+                    obj_name = text_obj.get('name', '')
+                    if obj_name:
+                        objects[obj_name] = {
+                            'type': 'text',
+                            'section': section_name,
+                            'data': text_obj,
+                            'section_index': sections.index(section)
+                        }
+            return objects
         
-        # Section changes
-        original_sections = [s.get('name', '') for s in original_metadata.get('sections', [])]
-        modified_sections = [s.get('name', '') for s in modified_metadata.get('sections', [])]
+        # Get all objects from both versions
+        original_objects = get_all_objects_from_sections(original_metadata)
+        modified_objects = get_all_objects_from_sections(modified_metadata)
         
-        for i, section_name in enumerate(original_sections):
+        # Check for renames (object disappeared from original, new object appeared in modified)
+        original_names = set(original_objects.keys())
+        modified_names = set(modified_objects.keys())
+        
+        # Simple rename detection: if exactly one object disappeared and one appeared
+        removed_names = original_names - modified_names
+        added_names = modified_names - original_names
+        
+        if len(removed_names) == 1 and len(added_names) == 1:
+            old_name = list(removed_names)[0]
+            new_name = list(added_names)[0]
+            old_obj = original_objects[old_name]
+            new_obj = modified_objects[new_name]
+            
+            # Check if they're in the same section and same type (likely a rename)
+            if (old_obj['section'] == new_obj['section'] and 
+                old_obj['type'] == new_obj['type']):
+                preview["changes"].append({
+                    "type": "rename",
+                    "description": f"Renamed {old_obj['type']} '{old_name}' to '{new_name}' in {old_obj['section']}",
+                    "old_value": old_name,
+                    "new_value": new_name,
+                    "section": old_obj['section']
+                })
+        
+        # Check for visibility changes (hidden/shown)
+        for obj_name in original_names.intersection(modified_names):
+            original_obj = original_objects[obj_name]
+            modified_obj = modified_objects[obj_name]
+            
+            original_hidden = original_obj['data'].get('hidden', False)
+            modified_hidden = modified_obj['data'].get('hidden', False)
+            
+            if not original_hidden and modified_hidden:
+                preview["changes"].append({
+                    "type": "hide",
+                    "description": f"Hidden {original_obj['type']} '{obj_name}' in {original_obj['section']}",
+                    "target": obj_name,
+                    "section": original_obj['section']
+                })
+            elif original_hidden and not modified_hidden:
+                preview["changes"].append({
+                    "type": "show", 
+                    "description": f"Showed {original_obj['type']} '{obj_name}' in {original_obj['section']}",
+                    "target": obj_name,
+                    "section": original_obj['section']
+                })
+        
+        # Check for moves between sections
+        for obj_name in original_names.intersection(modified_names):
+            original_obj = original_objects[obj_name]
+            modified_obj = modified_objects[obj_name]
+            
+            if original_obj['section'] != modified_obj['section']:
+                preview["changes"].append({
+                    "type": "move",
+                    "description": f"Moved {original_obj['type']} '{obj_name}' from {original_obj['section']} to {modified_obj['section']}",
+                    "target": obj_name,
+                    "old_section": original_obj['section'],
+                    "new_section": modified_obj['section']
+                })
+        
+        # Check for text content changes
+        for obj_name in original_names.intersection(modified_names):
+            original_obj = original_objects[obj_name]
+            modified_obj = modified_objects[obj_name]
+            
+            if original_obj['type'] == 'text' and modified_obj['type'] == 'text':
+                original_text = original_obj['data'].get('text', '')
+                modified_text = modified_obj['data'].get('text', '')
+                
+                if original_text != modified_text:
+                    preview["changes"].append({
+                        "type": "text_change",
+                        "description": f"Changed text in '{obj_name}' from '{original_text}' to '{modified_text}'",
+                        "target": obj_name,
+                        "old_value": original_text,
+                        "new_value": modified_text,
+                        "section": original_obj['section']
+                    })
+        
+        # Check for formatting changes
+        for obj_name in original_names.intersection(modified_names):
+            original_obj = original_objects[obj_name]
+            modified_obj = modified_objects[obj_name]
+            
+            original_formatting = original_obj['data'].get('formatting', {})
+            modified_formatting = modified_obj['data'].get('formatting', {})
+            
+            if original_formatting != modified_formatting:
+                preview["changes"].append({
+                    "type": "format",
+                    "description": f"Changed formatting for {original_obj['type']} '{obj_name}' in {original_obj['section']}",
+                    "target": obj_name,
+                    "old_formatting": original_formatting,
+                    "new_formatting": modified_formatting,
+                    "section": original_obj['section']
+                })
+        
+        # Check for section-level changes
+        original_sections = original_metadata.get('sections', [])
+        modified_sections = modified_metadata.get('sections', [])
+        
+        for i, original_section in enumerate(original_sections):
             if i < len(modified_sections):
-                original_hidden = original_metadata.get('sections', [])[i].get('hidden', False)
-                modified_hidden = modified_metadata.get('sections', [])[i].get('hidden', False)
+                modified_section = modified_sections[i]
+                section_name = original_section.get('name', f'Section {i+1}')
+                
+                original_hidden = original_section.get('hidden', False)
+                modified_hidden = modified_section.get('hidden', False)
                 
                 if not original_hidden and modified_hidden:
-                    preview["changes"].append(f"Hidden section '{section_name}'")
+                    preview["changes"].append({
+                        "type": "hide_section",
+                        "description": f"Hidden section '{section_name}'",
+                        "target": section_name
+                    })
                 elif original_hidden and not modified_hidden:
-                    preview["changes"].append(f"Showed section '{section_name}'")
+                    preview["changes"].append({
+                        "type": "show_section",
+                        "description": f"Showed section '{section_name}'",
+                        "target": section_name
+                    })
+        
+        # Also check field_lineage if it exists (for backward compatibility)
+        original_field_lineage = original_metadata.get('field_lineage', {})
+        modified_field_lineage = modified_metadata.get('field_lineage', {})
+        
+        if original_field_lineage or modified_field_lineage:
+            original_lineage_fields = set(original_field_lineage.keys())
+            modified_lineage_fields = set(modified_field_lineage.keys())
+            
+            # Check for field lineage renames (only if not already detected in sections)
+            lineage_removed = original_lineage_fields - modified_lineage_fields
+            lineage_added = modified_lineage_fields - original_lineage_fields
+            
+            if len(lineage_removed) == 1 and len(lineage_added) == 1:
+                old_name = list(lineage_removed)[0]
+                new_name = list(lineage_added)[0]
+                
+                # Only add if we haven't already detected this rename in sections
+                existing_renames = [c for c in preview["changes"] if c.get("type") == "rename"]
+                if not any(r.get("old_value") == old_name and r.get("new_value") == new_name for r in existing_renames):
+                    preview["changes"].append({
+                        "type": "rename",
+                        "description": f"Renamed field '{old_name}' to '{new_name}' (from field lineage)",
+                        "old_value": old_name,
+                        "new_value": new_name,
+                        "section": "Field Lineage"
+                    })
         
         # Create summary
         if preview["changes"]:
-            preview["summary"] = f"Will make {len(preview['changes'])} changes to the report"
+            change_count = len(preview["changes"])
+            change_types = list(set(change.get("type", "") for change in preview["changes"]))
+            preview["summary"] = f"Will make {change_count} change{'s' if change_count != 1 else ''}: {', '.join(change_types)}"
         else:
             preview["summary"] = "No changes detected"
         

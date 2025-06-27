@@ -568,8 +568,7 @@ def display_qa_interface(report_id: str):
                     # Show confidence and sources if available
                     if "confidence" in result:
                         st.caption(f"Confidence: {result['confidence']:.1%}")
-                    
-            else:
+                else:
                     st.error(f"Error: {response.text}")
                     
             except requests.exceptions.RequestException as e:
@@ -1542,12 +1541,12 @@ def display_upload_interface():
         # Show warning if replacing existing report
         if st.session_state.current_report_id:
             st.warning("⚠️ Uploading a new file will replace the current report. All unsaved work will be lost.")
-        
+            
             col1, col2 = st.columns(2)
-        with col1:
+            with col1:
                 if st.button("Cancel Upload", type="secondary", use_container_width=True):
                     st.rerun()
-        with col2:
+            with col2:
                 proceed = st.button("Continue with Upload", type="primary", use_container_width=True)
         else:
             proceed = True

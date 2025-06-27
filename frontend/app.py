@@ -669,8 +669,68 @@ def display_enhanced_visual_preview(report_id: str):
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Simple iframe container without complex JavaScript
-                st.components.v1.html(preview_html, height=650, scrolling=True)
+                # Enhanced iframe with disabled right-click
+                enhanced_html = f"""
+                <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #fafbfc;">
+                    {preview_html}
+                    <style>
+                    /* Completely disable right-click context menu */
+                    * {{
+                        -webkit-user-select: none;
+                        -moz-user-select: none;
+                        -ms-user-select: none;
+                        user-select: none;
+                        -webkit-touch-callout: none;
+                        -webkit-tap-highlight-color: transparent;
+                    }}
+                    
+                    /* Disable context menu completely */
+                    body, html, * {{
+                        context-menu: none !important;
+                        -webkit-context-menu: none !important;
+                        -moz-context-menu: none !important;
+                    }}
+                    </style>
+                    <script>
+                    // Disable right-click context menu completely
+                    document.addEventListener('contextmenu', function(e) {{
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return false;
+                    }}, true);
+                    
+                    // Disable right-click on all elements
+                    document.addEventListener('mousedown', function(e) {{
+                        if (e.button === 2) {{ // Right mouse button
+                            e.preventDefault();
+                            e.stopPropagation();
+                            return false;
+                        }}
+                    }}, true);
+                    
+                    // Disable context menu on touch devices
+                    document.addEventListener('touchstart', function(e) {{
+                        if (e.touches.length > 1) {{
+                            e.preventDefault();
+                        }}
+                    }}, true);
+                    
+                    // Additional protection against context menu
+                    window.addEventListener('contextmenu', function(e) {{
+                        e.preventDefault();
+                        return false;
+                    }}, true);
+                    
+                    // Disable drag and drop
+                    document.addEventListener('dragstart', function(e) {{
+                        e.preventDefault();
+                        return false;
+                    }}, true);
+                    </script>
+                </div>
+                """
+                
+                st.components.v1.html(enhanced_html, height=650, scrolling=True)
                 
             else:
                 st.markdown("""

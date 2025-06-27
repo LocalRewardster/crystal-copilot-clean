@@ -732,14 +732,9 @@ def display_edit_interface(report_id: str):
             help="Describe what you want to change in plain English"
         )
         
-        # Buttons
-        col_btn1, col_btn2 = st.columns(2)
-        
-        with col_btn1:
-            preview_button = st.button("Preview Changes", type="secondary", disabled=not edit_command.strip())
-        
-        with col_btn2:
-            apply_button = st.button("Apply Changes", type="primary", disabled=not edit_command.strip())
+        # Buttons - use full width instead of nested columns
+        preview_button = st.button("Preview Changes", type="secondary", disabled=not edit_command.strip(), use_container_width=True)
+        apply_button = st.button("Apply Changes", type="primary", disabled=not edit_command.strip(), use_container_width=True)
     
     with col2:
         # Visual Preview Area with Enhanced Context Menu Support
@@ -1084,44 +1079,42 @@ def display_context_menu_actions(report_id: str):
     with col1:
         st.markdown("**📋 Copy Actions**")
         
-        col1a, col1b = st.columns(2)
-        with col1a:
-            if st.button("📋 Copy Name", help="Copy the object name", key="copy_name"):
-                if st.session_state.last_selected_object:
-                    result = copy_object_info(
-                        report_id, 
-                        st.session_state.last_selected_object['name'],
-                        st.session_state.last_selected_object['type'],
-                        "name_only"
-                    )
-                    if result.get("success"):
-                        copy_text = result.get("action_result", {}).get("copy_text", "")
-                        st.success(f"✅ Copied: `{copy_text}`")
-                    else:
-                        st.error(f"❌ {result.get('message', 'Copy failed')}")
+        # Remove nested columns - use full width buttons instead
+        if st.button("📋 Copy Name", help="Copy the object name", key="copy_name", use_container_width=True):
+            if st.session_state.last_selected_object:
+                result = copy_object_info(
+                    report_id, 
+                    st.session_state.last_selected_object['name'],
+                    st.session_state.last_selected_object['type'],
+                    "name_only"
+                )
+                if result.get("success"):
+                    copy_text = result.get("action_result", {}).get("copy_text", "")
+                    st.success(f"✅ Copied: `{copy_text}`")
                 else:
-                    st.warning("⚠️ Right-click an object first")
+                    st.error(f"❌ {result.get('message', 'Copy failed')}")
+            else:
+                st.warning("⚠️ Right-click an object first")
         
-        with col1b:
-            if st.button("📄 Copy Info", help="Copy full object information", key="copy_info"):
-                if st.session_state.last_selected_object:
-                    result = copy_object_info(
-                        report_id, 
-                        st.session_state.last_selected_object['name'],
-                        st.session_state.last_selected_object['type'],
-                        "full"
-                    )
-                    if result.get("success"):
-                        copy_text = result.get("action_result", {}).get("copy_text", "")
-                        st.success("✅ Full object info copied!")
-                        with st.expander("📋 Copied Content"):
-                            st.text(copy_text)
-                    else:
-                        st.error(f"❌ {result.get('message', 'Copy failed')}")
+        if st.button("📄 Copy Info", help="Copy full object information", key="copy_info", use_container_width=True):
+            if st.session_state.last_selected_object:
+                result = copy_object_info(
+                    report_id, 
+                    st.session_state.last_selected_object['name'],
+                    st.session_state.last_selected_object['type'],
+                    "full"
+                )
+                if result.get("success"):
+                    copy_text = result.get("action_result", {}).get("copy_text", "")
+                    st.success("✅ Full object info copied!")
+                    with st.expander("📋 Copied Content"):
+                        st.text(copy_text)
                 else:
-                    st.warning("⚠️ Right-click an object first")
+                    st.error(f"❌ {result.get('message', 'Copy failed')}")
+            else:
+                st.warning("⚠️ Right-click an object first")
         
-        if st.button("🔍 Inspect Object", help="Show detailed information about the object", key="inspect"):
+        if st.button("🔍 Inspect Object", help="Show detailed information about the object", key="inspect", use_container_width=True):
             if st.session_state.last_selected_object:
                 with st.spinner("🔍 Inspecting object..."):
                     result = inspect_object(
@@ -1137,36 +1130,33 @@ def display_context_menu_actions(report_id: str):
                         obj_info = result.get("object_info", {})
                         
                         with st.expander("🔍 Object Details", expanded=True):
-                            col_info1, col_info2 = st.columns(2)
+                            # Use simple layout instead of nested columns
+                            st.markdown("**Basic Information:**")
+                            st.write(f"**Name:** {obj_info.get('name', 'Unknown')}")
+                            st.write(f"**Type:** {obj_info.get('object_type', 'Unknown').title()}")
+                            st.write(f"**Section:** {obj_info.get('section', 'Unknown')}")
+                            st.write(f"**Hidden:** {'Yes' if obj_info.get('hidden') else 'No'}")
                             
-                            with col_info1:
-                                st.markdown("**Basic Information:**")
-                                st.write(f"**Name:** {obj_info.get('name', 'Unknown')}")
-                                st.write(f"**Type:** {obj_info.get('object_type', 'Unknown').title()}")
-                                st.write(f"**Section:** {obj_info.get('section', 'Unknown')}")
-                                st.write(f"**Hidden:** {'Yes' if obj_info.get('hidden') else 'No'}")
+                            if obj_info.get('object_type') == 'field':
+                                st.markdown("**Field Information:**")
+                                if obj_info.get('database_field'):
+                                    st.write(f"**Database Field:** {obj_info.get('database_field')}")
+                                if obj_info.get('formula'):
+                                    st.write("**Formula:**")
+                                    st.code(obj_info.get('formula'), language='sql')
+                                if obj_info.get('detected_data_type'):
+                                    st.write(f"**Data Type:** {obj_info.get('detected_data_type').title()}")
+                            elif obj_info.get('object_type') == 'text':
+                                st.markdown("**Text Information:**")
+                                st.write(f"**Text Content:** {obj_info.get('text', 'No text')}")
+                            elif obj_info.get('object_type') == 'picture':
+                                st.markdown("**Picture Information:**")
+                                st.write(f"**Image Path:** {obj_info.get('image_path', 'No path')}")
                             
-                            with col_info2:
-                                if obj_info.get('object_type') == 'field':
-                                    st.markdown("**Field Information:**")
-                                    if obj_info.get('database_field'):
-                                        st.write(f"**Database Field:** {obj_info.get('database_field')}")
-                                    if obj_info.get('formula'):
-                                        st.write("**Formula:**")
-                                        st.code(obj_info.get('formula'), language='sql')
-                                    if obj_info.get('detected_data_type'):
-                                        st.write(f"**Data Type:** {obj_info.get('detected_data_type').title()}")
-                                elif obj_info.get('object_type') == 'text':
-                                    st.markdown("**Text Information:**")
-                                    st.write(f"**Text Content:** {obj_info.get('text', 'No text')}")
-                                elif obj_info.get('object_type') == 'picture':
-                                    st.markdown("**Picture Information:**")
-                                    st.write(f"**Image Path:** {obj_info.get('image_path', 'No path')}")
-                                
-                                if obj_info.get('formatting'):
-                                    st.markdown("**Formatting:**")
-                                    for key, value in obj_info.get('formatting', {}).items():
-                                        st.write(f"**{key.title()}:** {value}")
+                            if obj_info.get('formatting'):
+                                st.markdown("**Formatting:**")
+                                for key, value in obj_info.get('formatting', {}).items():
+                                    st.write(f"**{key.title()}:** {value}")
                     else:
                         st.error(f"❌ {result.get('message', 'Inspection failed')}")
             else:
@@ -1175,7 +1165,7 @@ def display_context_menu_actions(report_id: str):
     with col2:
         st.markdown("**✏️ Edit Actions**")
         
-        if st.button("👁️ Hide Object", help="Hide the selected object", key="hide"):
+        if st.button("👁️ Hide Object", help="Hide the selected object", key="hide", use_container_width=True):
             if st.session_state.last_selected_object:
                 with st.spinner("👁️ Hiding object..."):
                     result = hide_object(
@@ -1194,7 +1184,7 @@ def display_context_menu_actions(report_id: str):
             else:
                 st.warning("⚠️ Right-click an object first")
         
-        if st.button("📄 Duplicate Object", help="Create a copy of the object", key="duplicate"):
+        if st.button("📄 Duplicate Object", help="Create a copy of the object", key="duplicate", use_container_width=True):
             if st.session_state.last_selected_object:
                 with st.spinner("📄 Duplicating object..."):
                     result = duplicate_object(
@@ -1217,7 +1207,7 @@ def display_context_menu_actions(report_id: str):
         
         # Quick rename action
         new_name = st.text_input("Rename to:", placeholder="New object name", key="rename_input")
-        if st.button("✏️ Rename Object", disabled=not new_name.strip(), key="rename"):
+        if st.button("✏️ Rename Object", disabled=not new_name.strip(), key="rename", use_container_width=True):
             if st.session_state.last_selected_object:
                 # Use natural language editing for rename
                 command = f"Rename '{st.session_state.last_selected_object['name']}' to '{new_name.strip()}'"
@@ -1238,7 +1228,7 @@ def display_context_menu_actions(report_id: str):
         move_to_section = st.selectbox("Move to section:", 
                                       ["Report Header", "Page Header", "Details", "Report Footer", "Page Footer"],
                                       key="move_section")
-        if st.button("📦 Move to Section", key="move"):
+        if st.button("📦 Move to Section", key="move", use_container_width=True):
             if st.session_state.last_selected_object:
                 command = f"Move '{st.session_state.last_selected_object['name']}' to '{move_to_section}' section"
                 with st.spinner("📦 Moving object..."):
@@ -1267,7 +1257,7 @@ def display_context_menu_actions(report_id: str):
     with col_test3:
         test_section = st.text_input("Section:", placeholder="Report Header", key="test_section")
     
-    if st.button("🎯 Select Object Manually", key="manual_select"):
+    if st.button("🎯 Select Object Manually", key="manual_select", use_container_width=True):
         if test_name.strip():
             st.session_state.last_selected_object = {
                 "name": test_name.strip(),
@@ -1282,7 +1272,7 @@ def display_context_menu_actions(report_id: str):
             st.warning("⚠️ Enter an object name")
     
     # Clear selection button
-    if st.button("🗑️ Clear Selection", key="clear_selection"):
+    if st.button("🗑️ Clear Selection", key="clear_selection", use_container_width=True):
         st.session_state.last_selected_object = None
         st.session_state.object_selection_time = None
         st.success("✅ Selection cleared")
